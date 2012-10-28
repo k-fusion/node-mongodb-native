@@ -43,7 +43,7 @@ Let's get around to setting up a connection with the Mongo DB database. Jumping 
       }
     });
 
-Let's have a quick look at the simple connection. The **new Server(...)** sets up a configuration for the connection and the **auto_reconnect** tells the driver to retry sending a command to the server if there is a failure. Another option you can set is **poolSize**, this allows you to control how many tcp connections are opened in parallel. The default value for this is 1 but you can set it as high as you want. The driver will use a round-robin strategy to dispatch and read from the tcp connection.
+Let's have a quick look at the simple connection. The **new Server(...)** sets up a configuration for the connection and the **auto_reconnect** tells the driver to retry sending a command to the server if there is a failure. Another option you can set is **poolSize**, this allows you to control how many tcp connections are opened in parallel. The default value for this is 5 but you can set it as high as you want. The driver will use a round-robin strategy to dispatch and read from the tcp connection.
 
 We are up and running with a connection to the database. Let's move on and look at what collections are and how they work.
 
@@ -249,10 +249,10 @@ This is special supported function to retrieve just one specific document bypass
 That's pretty much it for the quick intro on how to use the database. I have also included a list of links to where to go to find more information and also a sample crude location application I wrote using express JS and mongo DB.
 
 ## Links and stuff
-* [The driver examples, good starting point for basic usage](https://github.com/christkv/node-mongodb-native/tree/master/examples)
-* [All the integration tests, they have tons of different usage cases](https://github.com/christkv/node-mongodb-native/tree/master/test)
+* [The driver examples, good starting point for basic usage](https://github.com/mongodb/node-mongodb-native/tree/master/examples)
+* [All the integration tests, they have tons of different usage cases](https://github.com/mongodb/node-mongodb-native/tree/master/test)
 * [The Mongo DB wiki pages such as the advanced query link](http://www.mongodb.org/display/DOCS/Advanced+Queries)
-* [A silly simple location based application using Express JS and Mongo DB](https://github.com/christkv/mongodb-hamburg)
+* [A silly simple location based application using Express JS and Mongo DB](https://github.com/christkv/mongodb-presentation)
 
 
 

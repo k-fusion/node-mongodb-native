@@ -2,9 +2,15 @@
 *.sw*
 *.seed
 *.tmp
+*.log
 .project
 .settings
+.tm_properties
 data
 node_modules/
+lib-cov/
 output
 build
+upload.py
+rcover_html/
+.coverage_data/

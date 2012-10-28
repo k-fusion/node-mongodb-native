@@ -8,6 +8,7 @@ var testCase = require('nodeunit').testCase,
   ReplicaSetManager = require('../tools/replica_set_manager').ReplicaSetManager,
   Db = mongodb.Db,
   ReplSetServers = mongodb.ReplSetServers,
+  Mongos = mongodb.Mongos,
   Server = mongodb.Server;
 
 // Keep instance of ReplicaSetManager
@@ -17,17 +18,17 @@ var RS = RS == null ? null : RS;
 
 var ensureConnection = function(test, numberOfTries, callback) {
   // Replica configuration
-  var replSet = new ReplSetServers( [ 
+  var replSet = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {rs_name:RS.name}
   );
-  
+
   if(numberOfTries <= 0) return callback(new Error("could not connect correctly"), null);
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   // Print any errors
   db.on("error", function(err) {
     console.log("============================= ensureConnection caught error")
@@ -35,9 +36,9 @@ var ensureConnection = function(test, numberOfTries, callback) {
     if(err != null && err.stack != null) console.log(err.stack)
     db.close();
   })
-  
+
   // Open the db
-  db.open(function(err, p_db) {    
+  db.open(function(err, p_db) {
     db.close();
 
     if(err != null) {
@@ -48,14 +49,14 @@ var ensureConnection = function(test, numberOfTries, callback) {
       }, 3000);
     } else {
       return callback(null);
-    }    
-  })            
+    }
+  })
 }
 
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 exports.setUp = function(callback) {
@@ -63,15 +64,16 @@ exports.setUp = function(callback) {
   if(!serversUp && !noReplicasetStart) {
     serversUp = true;
     RS = new ReplicaSetManager({retries:120, secondary_count:2, passive_count:1, arbiter_count:1});
-    RS.startSet(true, function(err, result) {      
+    // RS = new ReplicaSetManager({retries:120, secondary_count:1, passive_count:0, arbiter_count:0});
+    RS.startSet(true, function(err, result) {
       if(err != null) throw err;
       // Finish setup
-      callback();      
-    });      
-  } else {    
+      callback();
+    });
+  } else {
     RS.restartKilledNodes(function(err, result) {
       if(err != null) throw err;
-      callback();        
+      callback();
     })
   }
 }
@@ -79,7 +81,7 @@ exports.setUp = function(callback) {
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 exports.tearDown = function(callback) {
@@ -87,27 +89,43 @@ exports.tearDown = function(callback) {
   if(numberOfTestsRun == 0) {
     // Finished kill all instances
     RS.killAll(function() {
-      callback();              
+      callback();
     })
   } else {
-    callback();            
-  }  
+    callback();
+  }
 }
 
 /**
  * @ignore
  */
 exports.shouldThrowErrorDueToSharedConnectionUsage = function(test) {
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server('localhost', 28390, { auto_reconnect: true } ),
       new Server('localhost', 28391, { auto_reconnect: true } ),
       new Server('localhost', 28392, { auto_reconnect: true } )
-    ] 
+    ]
   );
-  
+
   try {
-    var db = new Db(MONGODB, replSet, {native_parser: (process.env['TEST_NATIVE'] != null)});    
-    var db1 = new Db(MONGODB, replSet, {native_parser: (process.env['TEST_NATIVE'] != null)});    
+    var db = new Db(MONGODB, replSet, {safe:false, native_parser: (process.env['TEST_NATIVE'] != null)});
+    var db1 = new Db(MONGODB, replSet, {safe:false, native_parser: (process.env['TEST_NATIVE'] != null)});
+  } catch(err) {
+    test.done();
+  }
+}
+
+/**
+ * @ignore
+ */
+exports.shouldThrowErrorDueToMongosConnectionUsage = function(test) {
+  try {
+    var replSet = new ReplSetServers([
+        new Server('localhost', 28390, { auto_reconnect: true } ),
+        new Server('localhost', 28391, { auto_reconnect: true } ),
+        new Mongos([new Server('localhost', 28392, { auto_reconnect: true } )])
+      ]
+    );
   } catch(err) {
     test.done();
   }
@@ -118,14 +136,14 @@ exports.shouldThrowErrorDueToSharedConnectionUsage = function(test) {
  */
 exports.shouldCorrectlyHandleErrorWhenNoServerUpInReplicaset = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server('localhost', 28390, { auto_reconnect: true } ),
       new Server('localhost', 28391, { auto_reconnect: true } ),
       new Server('localhost', 28392, { auto_reconnect: true } )
-    ] 
+    ]
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     test.ok(err != null);
     test.done();
@@ -140,38 +158,18 @@ exports.shouldCorrectlyHandleErrorWhenNoServerUpInReplicaset = function(test) {
  */
 exports.shouldCorrectlyConnectWithDefaultReplicasetNoOption = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server('localhost', 30000, { auto_reconnect: true } ),
       new Server('localhost', 30001, { auto_reconnect: true } ),
       new Server('localhost', 30002, { auto_reconnect: true } )
-    ] 
+    ]
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     test.equal(null, err);
-    test.done();
     p_db.close();
-  });
-}
-
-/**
- * @ignore
- */
-exports.shouldCorrectlyConnectWithDefaultReplicasetNoOption = function(test) {
-  // Replica configuration
-  var replSet = new ReplSetServers([ 
-      new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
-      new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
-      new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ] 
-  );
-
-  var db = new Db('integration_test_', replSet);
-  db.open(function(err, p_db) {
-    test.equal(null, err);
     test.done();
-    p_db.close();
   });
 }
 
@@ -180,20 +178,20 @@ exports.shouldCorrectlyConnectWithDefaultReplicasetNoOption = function(test) {
  */
 exports.shouldCorrectlyConnectWithDefaultReplicaset = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {}
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     test.equal(null, err);
     test.done();
     p_db.close();
-  })    
+  })
 }
 
 /**
@@ -201,21 +199,21 @@ exports.shouldCorrectlyConnectWithDefaultReplicaset = function(test) {
  */
 exports.shouldCorrectlyConnectWithDefaultReplicasetAndSocketOptionsSet = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {socketOptions:{keepAlive:100}}
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     test.equal(null, err);
     test.equal(100, db.serverConfig.checkoutWriter().socketOptions.keepAlive)
     test.done();
     p_db.close();
-  })    
+  })
 }
 
 /**
@@ -223,14 +221,14 @@ exports.shouldCorrectlyConnectWithDefaultReplicasetAndSocketOptionsSet = functio
  */
 exports.shouldEmitCloseNoCallback = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
     ], {}
   );
 
-  new Db('integration_test_', replSet).open(function(err, db) {
+  new Db('integration_test_', replSet, {safe:false}).open(function(err, db) {
     test.equal(null, err);
     var dbCloseCount = 0, serverCloseCount = 0;
     db.on('close', function() { ++dbCloseCount; });
@@ -248,14 +246,14 @@ exports.shouldEmitCloseNoCallback = function(test) {
  */
 exports.shouldEmitCloseWithCallback = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
     ], {}
   );
 
-  new Db('integration_test_', replSet).open(function(err, db) {
+  new Db('integration_test_', replSet, {safe:false}).open(function(err, db) {
     test.equal(null, err);
     var dbCloseCount = 0;
     db.on('close', function() { ++dbCloseCount; });
@@ -275,30 +273,30 @@ exports.shouldEmitCloseWithCallback = function(test) {
  */
 exports.shouldCorrectlyPassErrorWhenWrongReplicaSet = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers([ 
+  var replSet = new ReplSetServers([
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {rs_name:RS.name + "-wrong"}
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     test.notEqual(null, err);
     test.done();
-  })    
+  })
 }
 
 /**
  * @ignore
  */
 exports.shouldConnectWithPrimarySteppedDown = function(test) {
-  var replSet = new ReplSetServers( [ 
+  var replSet = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {rs_name:RS.name}
   );
 
@@ -307,14 +305,14 @@ exports.shouldConnectWithPrimarySteppedDown = function(test) {
     // Wait for new primary to pop up
     ensureConnection(test, retries, function(err, p_db) {
 
-      new Db('integration_test_', replSet).open(function(err, p_db) {    
+      new Db('integration_test_', replSet, {safe:false}).open(function(err, p_db) {
         test.ok(err == null);
         test.equal(true, p_db.serverConfig.isConnected());
 
         p_db.close();
-        test.done();          
-      })                    
-    });        
+        test.done();
+      })
+    });
   });
 }
 
@@ -328,25 +326,25 @@ exports.shouldConnectWithThirdNodeKilled = function(test) {
     RS.kill(node, function(err, result) {
       if(err != null) debug("shouldConnectWithThirdNodeKilled :: " + inspect(err));
       // Replica configuration
-      var replSet = new ReplSetServers( [ 
+      var replSet = new ReplSetServers( [
           new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
           new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
           new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-        ], 
+        ],
         {rs_name:RS.name}
       );
-  
+
       // Wait for new primary to pop up
       ensureConnection(test, retries, function(err, p_db) {
-        new Db('integration_test_', replSet).open(function(err, p_db) {    
+        new Db('integration_test_', replSet, {safe:false}).open(function(err, p_db) {
           test.ok(err == null);
           test.equal(true, p_db.serverConfig.isConnected());
 
           p_db.close();
-          test.done();          
-        })                    
-      });        
-    });      
+          test.done();
+        })
+      });
+    });
   });
 }
 
@@ -355,17 +353,17 @@ exports.shouldConnectWithThirdNodeKilled = function(test) {
  */
 exports.shouldConnectWithSecondaryNodeKilled = function(test) {
   RS.killSecondary(function(node) {
-    
+
     // Replica configuration
-    var replSet = new ReplSetServers( [ 
+    var replSet = new ReplSetServers( [
         new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
         new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
         new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-      ], 
+      ],
       {rs_name:RS.name}
     );
 
-    var db = new Db('integration_test_', replSet);
+    var db = new Db('integration_test_', replSet, {safe:false});
     // Print any errors
     db.on("error", function(err) {
       console.log("============================= caught error")
@@ -379,9 +377,9 @@ exports.shouldConnectWithSecondaryNodeKilled = function(test) {
       test.equal(true, p_db.serverConfig.isConnected());
 
       // Close and cleanup
-      p_db.close();        
-      test.done();          
-    })                  
+      p_db.close();
+      test.done();
+    })
   });
 }
 
@@ -391,20 +389,20 @@ exports.shouldConnectWithSecondaryNodeKilled = function(test) {
 exports.shouldConnectWithPrimaryNodeKilled = function(test) {
   RS.killPrimary(function(node) {
     // Replica configuration
-    var replSet = new ReplSetServers( [ 
+    var replSet = new ReplSetServers( [
         new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
         new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
         new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-      ], 
+      ],
       {rs_name:RS.name}
     );
-        
-    var db = new Db('integration_test_', replSet);
+
+    var db = new Db('integration_test_', replSet, {safe:false});
     ensureConnection(test, retries, function(err, p_db) {
       if(err != null && err.stack != null) console.log(err.stack)
-      test.done();          
+      test.done();
     });
-  });    
+  });
 }
 
 /**
@@ -412,63 +410,63 @@ exports.shouldConnectWithPrimaryNodeKilled = function(test) {
  */
 exports.shouldCorrectlyBeAbleToUsePortAccessors = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers( [ 
+  var replSet = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {rs_name:RS.name}
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     if(err != null) debug("shouldCorrectlyBeAbleToUsePortAccessors :: " + inspect(err));
     test.equal(replSet.host, p_db.serverConfig.primary.host);
     test.equal(replSet.port, p_db.serverConfig.primary.port);
-    
+
     p_db.close();
     test.done();
-  })            
+  })
 }
-  
+
 /**
  * @ignore
  */
 exports.shouldCorrectlyConnect = function(test) {
   // Replica configuration
-  var replSet = new ReplSetServers( [ 
+  var replSet = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
-    {rs_name:RS.name}
+    ],
+    {rs_name:RS.name, connectArbiter:true}
   );
 
   // Replica configuration
-  var replSet2 = new ReplSetServers( [ 
+  var replSet2 = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
-    {rs_name:RS.name}
+    ],
+    {rs_name:RS.name, connectArbiter:true}
   );
 
-  var db = new Db('integration_test_', replSet );
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     if(err != null) debug("shouldCorrectlyConnect :: " + inspect(err));
     test.equal(true, p_db.serverConfig.isConnected());
-    
+
     // Test primary
     RS.primary(function(err, primary) {
       if(err != null) debug("shouldCorrectlyConnect :: " + inspect(err));
-      
-      test.notEqual(null, primary);                
-      test.equal(primary, p_db.serverConfig.primary.host + ":" + p_db.serverConfig.primary.port);        
-      
+
+      test.notEqual(null, primary);
+      test.equal(primary, p_db.serverConfig.primary.host + ":" + p_db.serverConfig.primary.port);
+
       // Perform tests
       RS.secondaries(function(err, items) {
         if(err != null) debug("shouldCorrectlyConnect :: " + inspect(err));
-      
+
         // Test if we have the right secondaries
         test.deepEqual(items.sort(), p_db.serverConfig.allSecondaries.map(function(item) {
                                         return item.host + ":" + item.port;
@@ -477,31 +475,61 @@ exports.shouldCorrectlyConnect = function(test) {
         // Test if we have the right arbiters
         RS.arbiters(function(err, items) {
           if(err != null) debug("shouldCorrectlyConnect :: " + inspect(err));
-            
+
           test.deepEqual(items.sort(), p_db.serverConfig.arbiters.map(function(item) {
                                           return item.host + ":" + item.port;
                                         }).sort());
-          // Force new instance 
-          var db2 = new Db('integration_test_', replSet2 );
+          // Force new instance
+          var db2 = new Db('integration_test_', replSet2, {safe:false});
           db2.open(function(err, p_db2) {
             if(err != null) debug("shouldCorrectlyConnect :: " + inspect(err));
-            
+
             test.equal(true, p_db2.serverConfig.isConnected());
             // Close top instance
             db.close();
             db2.close();
             test.done();
-          });            
+          });
         });
       });
-    })            
-  });        
+    })
+  });
+}
+
+/**
+ * @ignore
+ */
+exports.shouldCorrectlyEmitOpenSignalAndFullSetSignal = function(test) {
+  var openCalled = false;
+  // Replica configuration
+  var replSet = new ReplSetServers( [
+      new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
+      new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
+      new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
+    ],
+    {rs_name:RS.name}
+  );
+
+  var db = new Db('integration_test_', replSet, {safe:false});
+  db.once("open", function(_err, _db) {
+    openCalled = true;
+  });
+
+  db.once("fullsetup", function(_err, _db) {
+    test.equal(true, openCalled);
+
+    // Close and cleanup
+    _db.close();
+    test.done();
+  })
+
+  db.open(function(err, p_db) {})
 }
 
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 exports.noGlobalsLeaked = function(test) {
@@ -513,7 +541,7 @@ exports.noGlobalsLeaked = function(test) {
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 var numberOfTestsRun = Object.keys(this).length - 2;

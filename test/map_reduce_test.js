@@ -25,7 +25,7 @@ var client = null;
  */
 exports.setUp = function(callback) {
   var self = exports;  
-  client = new Db(MONGODB, new Server("127.0.0.1", 27017, {auto_reconnect: true, poolSize: 4, ssl:useSSL}), {native_parser: (process.env['TEST_NATIVE'] != null)});
+  client = new Db(MONGODB, new Server("127.0.0.1", 27017, {auto_reconnect: true, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: (process.env['TEST_NATIVE'] != null)});
   client.open(function(err, db_p) {
     if(numberOfTestsRun == (Object.keys(self).length)) {
       // If first test drop the db
@@ -52,6 +52,7 @@ exports.tearDown = function(callback) {
   callback();
 }
 
+if(!process.env['TEST_COVERAGE']) {
 /**
  * A whole lot of different wayt to execute the group command
  *
@@ -60,7 +61,7 @@ exports.tearDown = function(callback) {
  */
 exports.shouldCorrectlyExecuteGroupFunction = function(test) {
   var db = new Db('integration_tests', new Server("127.0.0.1", 27017, 
-    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {native_parser: native_parser});
+    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: native_parser});
 
   // Establish connection to db  
   db.open(function(err, db) {
@@ -76,24 +77,20 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
         collection.insert([{'a':2}, {'b':5}, {'a':1}], {safe:true}, function(err, ids) {
           
           // Perform a group count
-          collection.group([], {}, {"count":0}, "function (obj, prev) { prev.count++; }"
-            , function(err, results) {
+          collection.group([], {}, {"count":0}, "function (obj, prev) { prev.count++; }", function(err, results) {
             test.equal(3, results[0].count);
 
             // Pefrom a group count using the eval method
-            collection.group([], {}, {"count":0}, "function (obj, prev) { prev.count++; }"
-              , false, function(err, results) {
+            collection.group([], {}, {"count":0}, "function (obj, prev) { prev.count++; }", false, function(err, results) {
               test.equal(3, results[0].count);
 
               // Group with a conditional
-              collection.group([], {'a':{'$gt':1}}, {"count":0}, "function (obj, prev) { prev.count++; }"
-                , function(err, results) {
+              collection.group([], {'a':{'$gt':1}}, {"count":0}, "function (obj, prev) { prev.count++; }", function(err, results) {
                 // Results
                 test.equal(1, results[0].count);
 
                 // Group with a conditional using the EVAL method
-                collection.group([], {'a':{'$gt':1}}, {"count":0}, "function (obj, prev) { prev.count++; }"
-                  , false, function(err, results) {
+                collection.group([], {'a':{'$gt':1}}, {"count":0}, "function (obj, prev) { prev.count++; }" , false, function(err, results) {
                   // Results
                   test.equal(1, results[0].count);
 
@@ -101,8 +98,7 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
                   collection.insert([{'a':2}, {'b':3}], {safe:true}, function(err, ids) {
                     
                     // Do a Group by field a
-                    collection.group(['a'], {}, {"count":0}, "function (obj, prev) { prev.count++; }"
-                      , function(err, results) {
+                    collection.group(['a'], {}, {"count":0}, "function (obj, prev) { prev.count++; }", function(err, results) {
                       // Results                        
                       test.equal(2, results[0].a);
                       test.equal(2, results[0].count);
@@ -112,8 +108,7 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
                       test.equal(1, results[2].count);
                       
                       // Do a Group by field a
-                      collection.group({'a':true}, {}, {"count":0}, function (obj, prev) { prev.count++; }
-                        , true, function(err, results) {
+                      collection.group({'a':true}, {}, {"count":0}, function (obj, prev) { prev.count++; }, true, function(err, results) {
                         // Results                        
                         test.equal(2, results[0].a);
                         test.equal(2, results[0].count);
@@ -129,8 +124,7 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
                         
                           // Use a function to select the keys used to group by
                           var keyf = function(doc) { return {a: doc.a}; };
-                          collection.group(keyf, {a: {$gt: 0}}, {"count": 0, "value": 0}
-                            , function(obj, prev) { prev.count++; prev.value += obj.a; }, true, function(err, results) {
+                          collection.group(keyf, {a: {$gt: 0}}, {"count": 0, "value": 0}, function(obj, prev) { prev.count++; prev.value += obj.a; }, true, function(err, results) {
                             // Results                        
                             results.sort(function(a, b) { return b.count - a.count; });
                             test.equal(2, results[0].count);
@@ -140,14 +134,27 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
                             test.equal(1, results[1].a);
                             test.equal(1, results[1].value);
                             
-                            // Correctly handle illegal function when using the EVAL method
-                            collection.group([], {}, {}, "5 ++ 5", false, function(err, results) {
-                              test.ok(err instanceof Error);
-                              test.ok(err.message != null);
-
-                              db.close();
-                              test.done();
-                            });                          
+                            // Use a Code object to select the keys used to group by
+                            var keyf = new Code(function(doc) { return {a: doc.a}; });
+                            collection.group(keyf, {a: {$gt: 0}}, {"count": 0, "value": 0}, function(obj, prev) { prev.count++; prev.value += obj.a; }, true, function(err, results) {
+                              // Results                        
+                              results.sort(function(a, b) { return b.count - a.count; });
+                              test.equal(2, results[0].count);
+                              test.equal(2, results[0].a);
+                              test.equal(4, results[0].value);
+                              test.equal(1, results[1].count);
+                              test.equal(1, results[1].a);
+                              test.equal(1, results[1].value);
+                              
+                              // Correctly handle illegal function when using the EVAL method
+                              collection.group([], {}, {}, "5 ++ 5", false, function(err, results) {
+                                test.ok(err instanceof Error);
+                                test.ok(err.message != null);
+  
+                                db.close();
+                                test.done();
+                              });
+                            });
                           });
                         });
                       });
@@ -161,6 +168,7 @@ exports.shouldCorrectlyExecuteGroupFunction = function(test) {
       });
     });
   });
+}
 }
 
 /**
@@ -198,7 +206,7 @@ exports.shouldCorrectlyExecuteGroupFunctionWithFinalizeFunction = function(test)
  */
 exports.shouldPerformSimpleMapReduceFunctions = function(test) {
   var db = new Db('integration_tests', new Server("127.0.0.1", 27017, 
-    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {native_parser: native_parser});
+    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: native_parser});
 
   // Establish connection to db  
   db.open(function(err, db) {
@@ -241,7 +249,7 @@ exports.shouldPerformSimpleMapReduceFunctions = function(test) {
  */
 exports.shouldPerformMapReduceFunctionInline = function(test) {
   var db = new Db('integration_tests', new Server("127.0.0.1", 27017, 
-    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {native_parser: native_parser});
+    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: native_parser});
 
   // Establish connection to db  
   db.open(function(err, db) {
@@ -267,12 +275,15 @@ exports.shouldPerformMapReduceFunctionInline = function(test) {
             collection.mapReduce(map, reduce, {out : {inline: 1}, verbose:true}, function(err, results, stats) {
               test.equal(2, results.length);
               test.ok(stats != null);
-              
-              db.close();
-              test.done();
-            });          
+
+              collection.mapReduce(map, reduce, {out : {replace: 'mapreduce_integration_test'}, verbose:true}, function(err, results, stats) {
+                test.ok(stats != null);
+                db.close();
+                test.done();
+              });
+            });
           });
-        });      
+        });
       } else {
         test.done();
       }
@@ -288,7 +299,7 @@ exports.shouldPerformMapReduceFunctionInline = function(test) {
 */
 exports.shouldPerformMapReduceInContext = function(test) {
   var db = new Db('integration_tests', new Server("127.0.0.1", 27017, 
-    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {native_parser: native_parser});
+    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: native_parser});
 
   // Establish connection to db  
   db.open(function(err, db) {
@@ -477,6 +488,47 @@ exports.shouldHandleMapReduceErrors = function(test) {
         test.done();
       });        
     });  
+  });
+}
+
+/**
+* @ignore
+*/
+exports.shouldSaveDataToDifferentDbFromMapreduce = function(test) {
+  var db = new Db('integration_tests', new Server("127.0.0.1", 27017, 
+    {auto_reconnect: false, poolSize: 4, ssl:useSSL}), {safe:false, native_parser: native_parser});
+
+  // Establish connection to db  
+  db.open(function(err, db) {
+    
+    // Create a test collection
+    db.createCollection('test_map_reduce_functions', function(err, collection) {
+      
+      // Insert some documents to perform map reduce over
+      collection.insert([{'user_id':1}, {'user_id':2}], {safe:true}, function(err, r) {
+
+        // Map function
+        var map = function() { emit(this.user_id, 1); };
+        // Reduce function
+        var reduce = function(k,vals) { return 1; };
+
+        // Peform the map reduce
+        collection.mapReduce(map, reduce, {out: {replace : 'tempCollection', db: "outputCollectionDb"}}, function(err, collection) {
+
+          // Mapreduce returns the temporary collection with the results          
+          collection.findOne({'_id':1}, function(err, result) {
+            test.equal(1, result.value);
+          
+            collection.findOne({'_id':2}, function(err, result) {
+              test.equal(1, result.value);
+              
+              db.close();
+              test.done();
+            });
+          });
+        });        
+      });  
+    });
   });
 }
 

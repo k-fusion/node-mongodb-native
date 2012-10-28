@@ -1,4 +1,3 @@
-
 var mongodb = process.env['TEST_NATIVE'] != null ? require('../../lib/mongodb').native() : require('../../lib/mongodb').pure();
 var noReplicasetStart = process.env['NO_REPLICASET_START'] != null ? true : false;
 
@@ -18,17 +17,17 @@ var RS = RS == null ? null : RS;
 
 var ensureConnection = function(test, numberOfTries, callback) {
   // Replica configuration
-  var replSet = new ReplSetServers( [ 
+  var replSet = new ReplSetServers( [
       new Server( RS.host, RS.ports[1], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
       new Server( RS.host, RS.ports[2], { auto_reconnect: true } )
-    ], 
+    ],
     {rs_name:RS.name}
   );
-  
+
   if(numberOfTries <= 0) return callback(new Error("could not connect correctly"), null);
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   // Print any errors
   db.on("error", function(err) {
     console.log("============================= ensureConnection caught error")
@@ -36,9 +35,9 @@ var ensureConnection = function(test, numberOfTries, callback) {
     if(err != null && err.stack != null) console.log(err.stack)
     db.close();
   })
-  
+
   // Open the db
-  db.open(function(err, p_db) {    
+  db.open(function(err, p_db) {
     db.close();
 
     if(err != null) {
@@ -49,14 +48,14 @@ var ensureConnection = function(test, numberOfTries, callback) {
       }, 3000);
     } else {
       return callback(null);
-    }    
-  })            
+    }
+  })
 }
 
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 exports.setUp = function(callback) {
@@ -64,15 +63,15 @@ exports.setUp = function(callback) {
   if(!serversUp && !noReplicasetStart) {
     serversUp = true;
     RS = new ReplicaSetManager({retries:120, secondary_count:2, passive_count:1, arbiter_count:1});
-    RS.startSet(true, function(err, result) {      
+    RS.startSet(true, function(err, result) {
       if(err != null) throw err;
       // Finish setup
-      callback();      
-    });      
-  } else {    
+      callback();
+    });
+  } else {
     RS.restartKilledNodes(function(err, result) {
       if(err != null) throw err;
-      callback();        
+      callback();
     })
   }
 }
@@ -80,7 +79,7 @@ exports.setUp = function(callback) {
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 exports.tearDown = function(callback) {
@@ -88,11 +87,11 @@ exports.tearDown = function(callback) {
   if(numberOfTestsRun == 0) {
     // Finished kill all instances
     RS.killAll(function() {
-      callback();              
+      callback();
     })
   } else {
-    callback();            
-  }  
+    callback();
+  }
 }
 
 exports.shouldNotTimeout = function (test) {
@@ -104,7 +103,7 @@ exports.shouldNotTimeout = function (test) {
     {}
   );
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
 
   db.open(function(err, p_db) {
     test.equal(null, err);
@@ -112,16 +111,14 @@ exports.shouldNotTimeout = function (test) {
     db.collection('shouldnottimeout', function (err, coll) {
       test.equal(null, err);
 
-      RS.killPrimary(function(node) {
-
+      RS.killPrimary(2, function(node) {
         var pending = 2;
 
         coll.update({name: 'a'}, {'$inc': {v: 1}}, {upsert: true, safe:true}, done);
         coll.findOne({name: 'a'}, done);
 
         function done (err, result) {
-          debug('should not timeout:', pending, err);
-          test.equal(null, err);
+          console.log('should not timeout: ' + pending);
           if (--pending) return;
           test.done();
           p_db.close();
@@ -146,7 +143,7 @@ exports.noGlobalsLeaked = function(test) {
 /**
  * Retrieve the server information for the current
  * instance of the db client
- * 
+ *
  * @ignore
  */
 var numberOfTestsRun = Object.keys(this).length - 2;

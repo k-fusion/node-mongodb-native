@@ -1,32 +1,33 @@
 Up to date documentation
-=======================
+========================
 
 [Documentation](http://mongodb.github.com/node-mongodb-native/)
 
 Install
-========
+=======
 
 To install the most recent release from npm, run:
 
     npm install mongodb
-    
-That may give you a warning telling you that bugs['web'] should be bugs['url'], it would be safe to ignore it (this has been fixed in the development version) 
+
+That may give you a warning telling you that bugs['web'] should be bugs['url'], it would be safe to ignore it (this has been fixed in the development version)
 
 To install the latest from the repository, run::
 
     npm install path/to/node-mongodb-native
 
 Community
-========
+=========
 Check out the google group [node-mongodb-native](http://groups.google.com/group/node-mongodb-native) for questions/answers from users of the driver.
 
 Introduction
-========
+============
 
 This is a node.js driver for MongoDB. It's a port (or close to a port) of the library for ruby at http://github.com/mongodb/mongo-ruby-driver/.
 
 A simple example of inserting a document.
 
+```javascript
     var client = new Db('test', new Server("127.0.0.1", 27017, {})),
         test = function (err, collection) {
           collection.insert({a:2}, function(err, docs) {
@@ -49,23 +50,27 @@ A simple example of inserting a document.
     client.open(function(err, p_client) {
       client.collection('test_insert', test);
     });
+```
 
 Data types
-========
+==========
 
 To store and retrieve the non-JSON MongoDb primitives ([ObjectID](http://www.mongodb.org/display/DOCS/Object+IDs), Long, Binary, [Timestamp](http://www.mongodb.org/display/DOCS/Timestamp+data+type), [DBRef](http://www.mongodb.org/display/DOCS/Database+References#DatabaseReferences-DBRef), Code).
 
-In particular, every document has a unique `_id` which can be almost any type, and by default a 12-byte ObjectID is created. ObjectIDs can be represented as 24-digit hexadecimal strings, but you must convert the string back into an ObjectID before you can use it in the database. For example: 
+In particular, every document has a unique `_id` which can be almost any type, and by default a 12-byte ObjectID is created. ObjectIDs can be represented as 24-digit hexadecimal strings, but you must convert the string back into an ObjectID before you can use it in the database. For example:
 
+```javascript
     // Get the objectID type
     var ObjectID = require('mongodb').ObjectID;
-    
+
     var idString = '4e4e1638c85e808431000003';
     collection.findOne({_id: new ObjectID(idString)}, console.log)  // ok
     collection.findOne({_id: idString}, console.log)  // wrong! callback gets undefined
+```
 
 Here are the constructors the non-Javascript BSON primitive types:
 
+```javascript
     // Fetch the library
     var mongo = require('mongodb');
     // Create new instances of BSON types
@@ -79,23 +84,24 @@ Here are the constructors the non-Javascript BSON primitive types:
     new mongo.MinKey()
     new mongo.MaxKey()
     new mongo.Double(number)	// Force double storage
+```
 
 The C/C++ bson parser/serializer
---------
-
-From V0.8.0 to V0.9.6.9, the Javascript bson parser was slower than an optional C/C++ bson parser. As of V0.9.6.9+, due to performance improvements in the Javascript parser, the C/C++ parser is deprecated and is not installed by default anymore.
+--------------------------------
 
 If you are running a version of this library has the C/C++ parser compiled, to enable the driver to use the C/C++ bson parser pass it the option native_parser:true like below
 
-    // using Deprecated native_parser:
+```javascript
+    // using native_parser:
     var client = new Db('integration_tests_20',
                         new Server("127.0.0.1", 27017),
                         {native_parser:true});
+```
 
 The C++ parser uses the js objects both for serialization and deserialization.
 
 GitHub information
-========
+==================
 
 The source code is available at http://github.com/mongodb/node-mongodb-native.
 You can either clone the repository or download a tarball of the latest release.
@@ -126,13 +132,14 @@ Replicasets
 For more information about how to connect to a replicaset have a look at [Replicasets](https://github.com/mongodb/node-mongodb-native/blob/master/docs/replicaset.md)
 
 Primary Key Factories
---------
+---------------------
 
 Defining your own primary key factory allows you to generate your own series of id's
 (this could f.ex be to use something like ISBN numbers). The generated the id needs to be a 12 byte long "string".
 
 Simple example below
 
+```javascript
     // Custom factory (need to provide a 12 byte array);
     CustomPKFactory = function() {}
     CustomPKFactory.prototype = new Object();
@@ -157,17 +164,19 @@ Simple example below
         });
       });
     });
+```
 
 Strict mode
---------
+-----------
 
 Each database has an optional strict mode. If it is set then asking for a collection
 that does not exist will return an Error object in the callback. Similarly if you
 attempt to create a collection that already exists. Strict is provided for convenience.
 
-    var error_client = new Db('integration_tests_', new Server("127.0.0.1", 27017, {auto_reconnect: false}), {strict:true});    
+```javascript
+    var error_client = new Db('integration_tests_', new Server("127.0.0.1", 27017, {auto_reconnect: false}), {strict:true});
       test.assertEquals(true, error_client.strict);
-      
+
       error_client.open(function(err, error_client) {
       error_client.collection('does-not-exist', function(err, collection) {
         test.assertTrue(err instanceof Error);
@@ -182,9 +191,10 @@ attempt to create a collection that already exists. Strict is provided for conve
         });
       });
     });
+```
 
 Documentation
-========
+=============
 
 If this document doesn't answer your questions, see the source of
 [Collection](https://github.com/mongodb/node-mongodb-native/blob/master/lib/mongodb/collection.js)
@@ -192,7 +202,7 @@ or [Cursor](https://github.com/mongodb/node-mongodb-native/blob/master/lib/mongo
 or the documentation at MongoDB for query and update formats.
 
 Find
---------
+----
 
 The find method is actually a factory method to create
 Cursor objects. A Cursor lazily uses the connection the first time
@@ -204,6 +214,7 @@ methods `each` and `toArray` call `nextObject` until the cursor is exhausted.
 
 Signatures:
 
+```javascript
     var cursor = collection.find(query, [fields], options);
     cursor.sort(fields).limit(n).skip(m).
 
@@ -212,6 +223,7 @@ Signatures:
     cursor.toArray(function(err, docs) {});
 
     cursor.rewind()  // reset the cursor to its initial state.
+```
 
 Useful chainable methods of cursor. These can optionally be options of `find` instead of method calls:
 
@@ -243,6 +255,7 @@ inactivity period.
 For information on how to create queries, see the
 [MongoDB section on querying](http://www.mongodb.org/display/DOCS/Querying).
 
+```javascript
     var mongodb = require('mongodb');
     var server = new mongodb.Server("127.0.0.1", 27017, {});
     new mongodb.Db('test', server, {}).open(function (error, client) {
@@ -252,13 +265,16 @@ For information on how to create queries, see the
         console.dir(docs);
       });
     });
+```
 
 Insert
---------
+------
 
 Signature:
 
+```javascript
     collection.insert(docs, options, [callback]);
+```
 
 where `docs` can be a single document or an array of documents.
 
@@ -268,6 +284,7 @@ Useful options:
 
 See also: [MongoDB docs for insert](http://www.mongodb.org/display/DOCS/Inserting).
 
+```javascript
     var mongodb = require('mongodb');
     var server = new mongodb.Server("127.0.0.1", 27017, {});
     new mongodb.Db('test', server, {}).open(function (error, client) {
@@ -281,13 +298,14 @@ See also: [MongoDB docs for insert](http://www.mongodb.org/display/DOCS/Insertin
         }
       });
     });
+```
 
 Note that there's no reason to pass a callback to the insert or update commands
 unless you use the `safe:true` option. If you don't specify `safe:true`, then
 your callback will be called immediately.
 
 Update; update and insert (upsert)
---------
+----------------------------------
 
 The update operation will update the first document that matches your query
 (or all documents that match if you use `multi:true`).
@@ -298,7 +316,9 @@ the modifier (`$inc`, `$set`, `$push`, etc.) formats.
 
 Signature:
 
+```javascript
     collection.update(criteria, objNew, options, [callback]);
+```
 
 Useful options:
 
@@ -308,6 +328,7 @@ Useful options:
 
 Example for `update`:
 
+```javascript
     var mongodb = require('mongodb');
     var server = new mongodb.Server("127.0.0.1", 27017, {});
     new mongodb.Db('test', server, {}).open(function (error, client) {
@@ -319,9 +340,10 @@ Example for `update`:
         else console.log('successfully updated');
       });
     });
+```
 
 Find and modify
---------
+---------------
 
 `findAndModify` is like `update`, but it also gives the updated document to
 your callback. But there are a few key differences between findAndModify and
@@ -332,7 +354,9 @@ update:
 
 Signature:
 
+```javascript
     collection.findAndModify(query, sort, update, options, callback)
+```
 
 The sort parameter is used to specify which object to operate on, if more than
 one document matches. It takes the same format as the cursor sort (see
@@ -350,6 +374,7 @@ Useful options:
 
 Example for `findAndModify`:
 
+```javascript
     var mongodb = require('mongodb');
     var server = new mongodb.Server("127.0.0.1", 27017, {});
     new mongodb.Db('test', server, {}).open(function (error, client) {
@@ -361,9 +386,10 @@ Example for `findAndModify`:
         else console.dir(object);  // undefined if no matching object exists.
       });
     });
+```
 
 Save
---------
+----
 
 The `save` method is a shorthand for upsert if the document contains an
 `_id`, or an insert if there is no `_id`.
@@ -382,19 +408,19 @@ Release Notes
 See HISTORY
 
 Credits
-========
+=======
 
 1. [10gen](http://github.com/mongodb/mongo-ruby-driver/)
 2. [Google Closure Library](http://code.google.com/closure/library/)
 3. [Jonas Raoni Soares Silva](http://jsfromhell.com/classes/binary-parser)
 
 Contributors
-=============
+============
 
 Aaron Heckmann, Christoph Pojer, Pau Ramon Revilla, Nathan White, Emmerman, Seth LaForge, Boris Filipov, Stefan Schärmeli, Tedde Lundgren, renctan, Sergey Ukustov, Ciaran Jessup, kuno, srimonti, Erik Abele, Pratik Daga, Slobodan Utvic, Kristina Chodorow, Yonathan Randolph, Brian Noguchi, Sam Epstein, James Harrison Fisher, Vladimir Dronnikov, Ben Hockey, Henrik Johansson, Simon Weare, Alex Gorbatchev, Shimon Doodkin, Kyle Mueller, Eran Hammer-Lahav, Marcin Ciszak, François de Metz, Vinay Pulim, nstielau, Adam Wiggins, entrinzikyl, Jeremy Selier, Ian Millington, Public Keating, andrewjstone, Christopher Stott, Corey Jewett, brettkiefer, Rob Holland, Senmiao Liu, heroic, gitfy
 
 License
-========
+=======
 
  Copyright 2009 - 2012 Christian Amor Kvalheim.
 

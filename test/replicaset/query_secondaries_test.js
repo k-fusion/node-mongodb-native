@@ -28,7 +28,7 @@ var ensureConnection = function(test, numberOfTries, callback) {
   
   if(numberOfTries <= 0) return callback(new Error("could not connect correctly"), null);
 
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   // Print any errors
   db.on("error", function(err) {
     console.log("============================= ensureConnection caught error")
@@ -66,7 +66,7 @@ exports.setUp = function(callback) {
     RS.startSet(true, function(err, result) {      
       if(err != null) throw err;
       // Finish setup
-      callback();      
+      callback();              
     });      
   } else {    
     RS.restartKilledNodes(function(err, result) {
@@ -95,7 +95,6 @@ exports.tearDown = function(callback) {
 }
 
 exports.shouldReadPrimary = function(test) {
-  // debug("=========================================== shouldReadPrimary")
   // Replica configuration
   var replSet = new ReplSetServers( [ 
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
@@ -104,22 +103,29 @@ exports.shouldReadPrimary = function(test) {
   );
 
   // Insert some data
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
-    if(err != null) debug("shouldReadPrimary :: " + inspect(err));
-    // Drop collection on replicaset
-    p_db.dropCollection('testsets', function(err, r) {
-      if(err != null) debug("shouldReadPrimary :: " + inspect(err));
-      test.equal(false, p_db.serverConfig.isReadPrimary());
-      test.equal(false, p_db.serverConfig.isPrimary());
-      p_db.close();
-      test.done();
-    });
+    var waitForSetup = function() {
+      if(Object.keys(p_db.serverConfig._state.secondaries).length == 0) {
+        setTimeout(waitForSetup, 1000);
+      } else {
+        if(err != null) debug("shouldReadPrimary :: " + inspect(err));
+        // Drop collection on replicaset
+        p_db.dropCollection('testsets', function(err, r) {
+          if(err != null) debug("shouldReadPrimary :: " + inspect(err));
+          test.equal(false, p_db.serverConfig.isReadPrimary());
+          test.equal(false, p_db.serverConfig.isPrimary());
+          p_db.close();
+          test.done();
+        });              
+      }
+    }
+    
+    setTimeout(waitForSetup, 1000);
   })                
 }
 
 exports.shouldCorrectlyTestConnection = function(test) {
-  // debug("=========================================== shouldCorrectlyTestConnection")
   // Replica configuration
   var replSet = new ReplSetServers( [ 
       new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
@@ -128,25 +134,31 @@ exports.shouldCorrectlyTestConnection = function(test) {
   );
 
   // Insert some data
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
-    if(err != null) debug("shouldReadPrimary :: " + inspect(err));
+    var waitForSetup = function() {
+      if(Object.keys(p_db.serverConfig._state.secondaries).length == 0) {
+        setTimeout(waitForSetup, 1000);
+      } else {
+        if(err != null) debug("shouldReadPrimary :: " + inspect(err));
+        // Drop collection on replicaset
+        p_db.dropCollection('testsets', function(err, r) {
+          if(err != null) debug("shouldReadPrimary :: " + inspect(err));
 
-    // Drop collection on replicaset
-    p_db.dropCollection('testsets', function(err, r) {
-      if(err != null) debug("shouldReadPrimary :: " + inspect(err));
-
-      test.ok(p_db.serverConfig.primary != null);
-      test.ok(p_db.serverConfig.read != null);
-      test.ok(p_db.serverConfig.primary.port != p_db.serverConfig.read.port);
-      p_db.close();
-      test.done();
-    });
+          test.ok(p_db.serverConfig.primary != null);
+          test.ok(p_db.serverConfig.read != null);
+          test.ok(p_db.serverConfig.primary.port != p_db.serverConfig.read.port);
+          p_db.close();
+          test.done();
+        });
+      }
+    }
+    
+    setTimeout(waitForSetup, 1000);
   })
 }
 
 exports.shouldCorrectlyQuerySecondaries = function(test) {
-  // debug("=========================================== shouldCorrectlyQuerySecondaries")
   var self = this;
   // Replica configuration
   var replSet = new ReplSetServers( [ 
@@ -158,24 +170,37 @@ exports.shouldCorrectlyQuerySecondaries = function(test) {
   );
 
   // Insert some data
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
-    if(err != null) debug("shouldReadPrimary :: " + inspect(err));
-
+    // console.log("----------------------------------------------------------------- 0")
     p_db.createCollection("testsets", {safe:{w:2, wtimeout:10000}}, function(err, collection) {
-      if(err != null) debug("shouldReadPrimary :: " + inspect(err));
-      
+      // console.log("----------------------------------------------------------------- 1")
       collection.insert([{a:20}, {a:30}, {a:40}], {safe:{w:2, wtimeout:10000}}, function(err, result) {
+        // console.log("----------------------------------------------------------------- 2")
         // Ensure replication happened in time
         setTimeout(function() {
           // Kill the primary
-          RS.killPrimary(function(node) {
+          RS.killPrimary(2, function(node) {
+            // console.log("----------------------------------------------------------------- 3")
             // Do a collection find
-            collection.find().toArray(function(err, items) {                
-              test.equal(null, err);
-              test.equal(3, items.length);                
-              p_db.close();
-              test.done();
+            collection.find().toArray(function(err, items) {   
+              // console.log("----------------------------------------------------------------- 4")
+              test.ok(err != null);
+              // console.log("============================================================================ shouldCorrectlyQuerySecondaries")
+              // console.dir(err)
+              // console.dir(items)
+
+              collection.find().toArray(function(err, items) {                
+                // console.log("----------------------------------------------------------------- 5")
+                // console.log("============================================================================ shouldCorrectlyQuerySecondaries 1")
+                // console.dir(err)
+                // console.dir(items)
+
+                test.equal(null, err);
+                test.equal(3, items.length);                
+                p_db.close();
+                test.done();
+              });
             });            
           });
         }, 2000);
@@ -184,7 +209,7 @@ exports.shouldCorrectlyQuerySecondaries = function(test) {
   })    
 }
 
-exports.shouldCorrectlyQuerySecondaries = function(test) {
+exports.shouldCorrectlyQueryPrimary = function(test) {
   // debug("=========================================== shouldCorrectlyQuerySecondaries")
   var self = this;
   // Replica configuration
@@ -197,7 +222,7 @@ exports.shouldCorrectlyQuerySecondaries = function(test) {
   );
 
   // Insert some data
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     if(err != null) debug("shouldReadPrimary :: " + inspect(err));
     
@@ -223,7 +248,7 @@ exports.shouldAllowToForceReadWithPrimary = function(test) {
   );
 
   // Insert some data
-  var db = new Db('integration_test_', replSet);
+  var db = new Db('integration_test_', replSet, {safe:false});
   db.open(function(err, p_db) {
     if(err != null) debug("shouldReadPrimary :: " + inspect(err));
     // Create a collection
@@ -237,13 +262,51 @@ exports.shouldAllowToForceReadWithPrimary = function(test) {
         var cursor = collection.find({}, {read:'primary'})            
         // Get documents
         cursor.toArray(function(err, items) {
-          test.equal(1, items.length);
+          test.equal(1, items.length);          
           test.equal(1, items[0].a);
           p_db.close();
           test.done();
         })
       });
     })
+  })                
+}
+
+exports.shouldWorkWithSecondarySeeding = function(test) {
+  // debug("=========================================== shouldAllowToForceReadWithPrimary")
+  // Replica configuration
+  var replSet = new ReplSetServers( [ 
+      new Server( RS.host, RS.ports[0], { auto_reconnect: true } ),
+    ], 
+    {rs_name:RS.name, read_secondary:true}
+  );
+
+  // Insert some data
+  var db = new Db('integration_test_', replSet, {safe:false});
+  db.on("fullsetup", function() {
+    // Create a collection
+    db.createCollection('shouldWorkWithSecondarySeeding', function(err, collection) {
+      test.equal(null, err);
+      // Insert a document
+      collection.insert({a:1}, {safe:{w:2, wtimeout:10000}}, function(err, result) {
+        test.equal(null, err);
+        
+        // Force read using primary
+        var cursor = collection.find({}, {read:'primary'})            
+        // Get documents
+        cursor.toArray(function(err, items) {
+          test.equal(1, items.length);          
+          test.equal(1, items[0].a);
+          db.close();
+          test.done();
+        });
+      });
+    })
+  });
+
+  db.open(function(err, p_db) {
+    if(err != null) debug("shouldReadPrimary :: " + inspect(err));
+    db = p_db;
   })                
 }
 
