@@ -4,7 +4,7 @@ var fs = require('fs'),
   ejs = require('ejs'),
   exec = require('child_process').exec,
   markdown = require('markdown').markdown,
-  github = require('github3'),
+  github = require('./github3'),
   format = require('util').format;  
 
 // -----------------------------------------------------------------------------------------------------
@@ -252,8 +252,29 @@ exports.buildTestHash = function(objects) {
         for(var k = 0; k < codeLines.length; k++) {
           codeLines[k] = codeLines[k].replace(/^  /, "")
         }
+
+        // Start and end of example
+        var start = 0, end = codeLines.length;
+        var additional_lines = [];
+
+        // Locate DOC_START
+        for(var k = 0; k < codeLines.length; k++) {
+          if(codeLines[k].indexOf("DOC_START") != -1) start = k + 1;
+          if(codeLines[k].indexOf("DOC_END") != -1) end = k;
+          if(codeLines[k].indexOf("DOC_LINE") != -1) {
+            additional_lines.push(codeLines[k].split("DOC_LINE")[1].substr(1));
+          }
+        }
+
+        // console.log(codeLines)
+
+        codeLines = codeLines.slice(start, end);
+        codeLines = additional_lines.concat(codeLines);
         // Reasign the code block
         block.code = codeLines.join("\n");
+
+        // console.log("------------------------------------------- CODE")
+        // console.log(block.code)
       }
     }
   }
@@ -389,18 +410,24 @@ var _generateGithubPackageList = function(inputFile, outputDirectory, templates,
     if(options == null || options.dontfetch == null) {
       // Get repo information
       new function(_repo, _username) {
-        // Get the repo information
-        github.getRepository(_repo, _username, function(err, result) {
-          // Correct the number of remaining repos
-          totalNumberOfRepos = totalNumberOfRepos - 1;
-          // Write the content to disk
-          fs.writeFileSync(format("%s/%s.%s.json", outputDirectory, _repo, _username), JSON.stringify(result, null, 2), 'ascii');
+        setTimeout(function() {
+          // Get the repo information
+          github.getRepository(_repo, _username, function(err, result) {
+            if(err) console.dir(_repo + "::" + err.message);
+            // Correct the number of remaining repos
+            totalNumberOfRepos = totalNumberOfRepos - 1;
 
-          // If we are done skip to next processing step
-          if(totalNumberOfRepos == 0) {
-            return _processGithub(objects, outputDirectory, templateObjects, tagDescriptions);
-          }
-        });                      
+            if(!err) {
+              // Write the content to disk
+              fs.writeFileSync(format("%s/%s.%s.json", outputDirectory, _repo, _username), JSON.stringify(result, null, 2), 'ascii');      
+            }
+            
+            // If we are done skip to next processing step
+            if(totalNumberOfRepos == 0) {
+              return _processGithub(objects, outputDirectory, templateObjects, tagDescriptions);
+            }          
+          });
+        }, 200)
       }(repo, username)          
     }
   }

@@ -1,3 +1,168 @@
+1.3.9 2013-06-05
+----------------
+- Fixed memory leak when findAndModify errors out on w>1 and chained callbacks not properly cleaned up.
+
+1.3.8 2013-05-31
+----------------
+- Fixed issue with socket death on windows where it emits error event instead of close event (Issue #987)
+- Emit authenticate event on db after authenticate method has finished on db instance (Issue #984)
+- Allows creation of MongoClient and do new MongoClient().connect(..). Emits open event when connection correct allowing for apps to react on event.
+
+1.3.7 2013-05-29
+----------------
+- After reconnect, tailable getMores go on inconsistent connections (Issue #981, #982, https://github.com/glasser)
+- Updated Bson to 0.1.9 to fix ARM support (Issue #985)
+
+1.3.6 2013-05-21
+----------------
+- Fixed issue where single server reconnect attempt would throw due to missing options variable (Issue #979)
+- Fixed issue where difference in ismaster server name and seed list caused connections issues, (Issue #976)
+
+1.3.5 2013-05-14
+----------------
+- Fixed issue where HA for replicaset would pick the same broken connection when attempting to ping the replicaset causing the replicaset to never recover.
+
+1.3.4 2013-05-14
+----------------
+- Fixed bug where options not correctly passed in for uri parser (Issue #973, https://github.com/supershabam)
+- Fixed bug when passing a named index hint (Issue #974)
+
+1.3.3 2013-05-09
+----------------
+- Fixed auto-reconnect issue with single server instance.
+
+1.3.2 2013-05-08
+----------------
+- Fixes for an issue where replicaset would be pronounced dead when high priority primary caused double elections.
+
+1.3.1 2013-05-06
+----------------
+- Fix for replicaset consisting of primary/secondary/arbiter with priority applied failing to reconnect properly
+- Applied auth before server instance is set as connected when single server connection
+- Throw error if array of documents passed to save method
+
+1.3.0 2013-04-25
+----------------
+- Whole High availability handling for Replicaset, Server and Mongos connections refactored to ensure better handling of failover cases.
+- Fixed issue where findAndModify would not correctly skip issuing of chained getLastError (Issue #941)
+- Fixed throw error issue on errors with findAndModify during write out operation (Issue #939, https://github.com/autopulated)
+- Gridstore.prototype.writeFile now returns gridstore object correctly (Issue #938)
+- Kerberos support is now an optional module that allows for use of GSSAPI authentication using MongoDB Subscriber edition
+- Fixed issue where cursor.toArray could blow the stack on node 0.10.X (#950)
+
+1.2.14 2013-03-14
+-----------------
+- Refactored test suite to speed up running of replicaset tests
+- Fix of async error handling when error happens in callback (Issue #909, https://github.com/medikoo)
+- Corrected a slaveOk setting issue (Issue #906, #905)
+- Fixed HA issue where ping's would not go to correct server on HA server connection failure.
+- Uses setImmediate if on 0.10 otherwise nextTick for cursor stream
+- Fixed race condition in Cursor stream (NODE-31)
+- Fixed issues related to node 0.10 and process.nextTick now correctly using setImmediate where needed on node 0.10
+- Added support for maxMessageSizeBytes if available (DRIVERS-1)
+- Added support for authSource (2.4) to MongoClient URL and db.authenticate method (DRIVER-69/NODE-34)
+- Fixed issue in GridStore seek and GridStore read to correctly work on multiple seeks (Issue #895)
+
+1.2.13 2013-02-22
+-----------------
+- Allow strategy 'none' for repliaset if no strategy wanted (will default to round robin selection of servers on a set readPreference)
+- Fixed missing MongoErrors on some cursor methods (Issue #882)
+- Correctly returning a null for the db instance on MongoClient.connect when auth fails (Issue #890)
+- Added dropTarget option support for renameCollection/rename (Issue #891, help from https://github.com/jbottigliero)
+- Fixed issue where connection using MongoClient.connect would fail if first server did not exist (Issue #885)
+
+1.2.12 2013-02-13
+-----------------
+- Added limit/skip options to Collection.count (Issue #870)
+- Added applySkipLimit option to Cursor.count (Issue #870)
+- Enabled ping strategy as default for Replicaset if none specified (Issue #876)
+- Should correctly pick nearest server for SECONDARY/SECONDARY_PREFERRED/NEAREST (Issue #878)
+
+1.2.11 2013-01-29
+-----------------
+- Added fixes for handling type 2 binary due to PHP driver (Issue #864)
+- Moved callBackStore to Base class to have single unified store (Issue #866)
+- Ping strategy now reuses sockets unless they are closed by the server to avoid overhead
+
+1.2.10 2013-01-25
+-----------------
+- Merged in SSL support for 2.4 supporting certificate validation and presenting certificates to the server.
+- Only open a new HA socket when previous one dead (Issue #859, #857)
+- Minor fixes
+
+1.2.9 2013-01-15
+----------------
+- Fixed bug in SSL support for MongoClient/Db.connect when discovering servers (Issue #849)
+- Connection string with no db specified should default to admin db (Issue #848)
+- Support port passed as string to Server class (Issue #844)
+- Removed noOpen support for MongoClient/Db.connect as auto discovery of servers for Mongod/Mongos makes it not possible (Issue #842)
+- Included toError wrapper code moved to utils.js file (Issue #839, #840)
+- Rewrote cursor handling to avoid process.nextTick using trampoline instead to avoid stack overflow, speedup about 40%
+
+1.2.8 2013-01-07
+----------------
+- Accept function in a Map Reduce scope object not only a function string (Issue #826, https://github.com/aheckmann)
+- Typo in db.authenticate caused a check (for provided connection) to return false, causing a connection AND onAll=true to be passed into __executeQueryCommand downstream (Issue #831, https://github.com/m4tty)
+- Allow gridfs objects to use non ObjectID ids (Issue #825, https://github.com/nailgun)
+- Removed the double wrap, by not passing an Error object to the wrap function (Issue #832, https://github.com/m4tty)
+- Fix connection leak (gh-827) for HA replicaset health checks (Issue #833, https://github.com/aheckmann)
+- Modified findOne to use nextObject instead of toArray avoiding a nextTick operation (Issue #836)
+- Fixes for cursor stream to avoid multiple getmore issues when one in progress (Issue #818)
+- Fixes .open replaying all backed up commands correctly if called after operations performed, (Issue #829 and #823)
+
+1.2.7 2012-12-23
+----------------
+- Rolled back batches as they hang in certain situations
+- Fixes for NODE-25, keep reading from secondaries when primary goes down
+
+1.2.6 2012-12-21
+----------------
+- domain sockets shouldn't require a port arg (Issue #815, https://github.com/aheckmann)
+- Cannot read property 'info' of null (Issue #809, https://github.com/thesmart)
+- Cursor.each should work in batches (Issue #804, https://github.com/Swatinem)
+- Cursor readPreference bug for non-supported read preferences (Issue #817)
+
+1.2.5 2012-12-12
+----------------
+- Fixed ssl regression, added more test coverage (Issue #800)
+- Added better error reporting to the Db.connect if no valid serverConfig setup found (Issue #798)
+
+1.2.4 2012-12-11
+----------------
+- Fix to ensure authentication is correctly applied across all secondaries when using MongoClient.
+
+1.2.3 2012-12-10
+----------------
+- Fix for new replicaset members correctly authenticating when being added (Issue #791, https://github.com/m4tty)
+- Fixed seek issue in gridstore when using stream (Issue #790)
+
+1.2.2 2012-12-03
+----------------
+- Fix for journal write concern not correctly being passed under some circumstances.
+- Fixed correct behavior and re-auth for servers that get stepped down (Issue #779).
+
+1.2.1 2012-11-30
+----------------
+- Fix for double callback on insert with w:0 specified (Issue #783)
+- Small cleanup of urlparser.
+
+1.2.0 2012-11-27
+----------------
+- Honor connectTimeoutMS option for replicasets (Issue #750, https://github.com/aheckmann)
+- Fix ping strategy regression (Issue #738, https://github.com/aheckmann)
+- Small cleanup of code (Issue #753, https://github.com/sokra/node-mongodb-native)
+- Fixed index declaration using objects/arrays from other contexts (Issue #755, https://github.com/sokra/node-mongodb-native)
+- Intermittent (and rare) null callback exception when using ReplicaSets (Issue #752)
+- Force correct setting of read_secondary based on the read preference (Issue #741)
+- If using read preferences with secondaries queries will not fail if primary is down (Issue #744)
+- noOpen connection for Db.connect removed as not compatible with autodetection of Mongo type
+- Mongos connection with auth not working (Issue #737)
+- Use the connect method directly from the require. require('mongodb')("mongodb://localhost:27017/db")
+- new MongoClient introduced as the point of connecting to MongoDB's instead of the Db
+  - open/close/db/connect methods implemented
+- Implemented common URL connection format using MongoClient.connect allowing for simialar interface across all drivers.
+- Fixed a bug with aggregation helper not properly accepting readPreference
+
 1.1.11 2012-10-10
 -----------------
 - Removed strict mode and introduced normal handling of safe at DB level.

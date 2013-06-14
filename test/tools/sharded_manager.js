@@ -15,6 +15,7 @@ var ReplicaSetManager = require('./replica_set_manager').ReplicaSetManager,
 // db: database to shard on
 // collection: collection to shard
 // shardKey: the collection shard key
+// auth: run servers in auth mode
 //
 var ShardedManager = function ShardedManager(options) {
   options = options == null ? {} : options;
@@ -22,26 +23,28 @@ var ShardedManager = function ShardedManager(options) {
   this.numberOfConfigServers = options["numberOfConfigServers"] != null ? options["numberOfConfigServers"] : 1;
   if(this.numberOfConfigServers != 1 && this.numberOfConfigServers != 3) throw new Error("Only 1 or 3 config servers can be used");
   // Config Servers port range
-  this.configPortRangeSet = options["configPortRangeSet"] != null ? options["configPortRangeSet"] : 40000;
+  this.configPortRangeSet = options["configPortRangeSet"] || 40000;
 
   // Number of replicasets in the sharded setup
-  this.numberOfReplicaSets = options["numberOfReplicaSets"] != null ? options["numberOfReplicaSets"] : 1;
+  this.numberOfReplicaSets = options["numberOfReplicaSets"] || 1;
   // Number of mongo's in the sharded setup
-  this.numberOfMongosServers = options["numberOfMongosServers"] != null ? options["numberOfMongosServers"] : 1;
+  this.numberOfMongosServers = options["numberOfMongosServers"] || 1;
 
   // Set the replicasetPortRange
-  this.replPortRangeSet = options["replPortRangeSet"] != null ? options["replPortRangeSet"] : 30000;
+  this.replPortRangeSet = options["replPortRangeSet"] || 30000;
   // Set up mongos port range
-  this.mongosRangeSet = options["mongosRangeSet"] != null ? options["mongosRangeSet"] : 50000;
+  this.mongosRangeSet = options["mongosRangeSet"] || 50000;
   // Database to shard
-  this.db = options["db"] != null ? options["db"] : "sharded_test_db";
+  this.db = options["db"] ||  "sharded_test_db";
   // Collection to shard
-  this.collection = options["collection"] != null ? options["collection"] : "sharded_test_db_collection";
+  this.collection = options["collection"] || "sharded_test_db_collection";
   // Key to shard on
-  this.shardKey = options["shardKey"] != null ? options["shardKey"] : "_id";
+  this.shardKey = options["shardKey"] || "_id";
+  // Enable auth mode
+  this.auth = options["auth"] || false;
 
   // Additional settings for each replicaset
-  this.replicasetOptionsArray = options["replicasetOptions"] != null ? options["replicasetOptions"] : [];
+  this.replicasetOptionsArray = options["replicasetOptions"] || [];
 
   // Build a the replicaset instances
   this.replicasetManagers = [];
@@ -58,7 +61,15 @@ var ShardedManager = function ShardedManager(options) {
 
   // Sets up the replicaset managers
   for(var i = 0; i < this.numberOfReplicaSets; i++) {
-    var replicasetSettings = {name:("repl_set" + i), start_port:replStarPort, retries:120, secondary_count:1, passive_count:0, arbiter_count:1};
+    var replicasetSettings = {
+      name:("repl_set" + i), 
+      start_port:replStarPort, 
+      retries:120, 
+      secondary_count:1, 
+      passive_count:0, 
+      arbiter_count:1,
+      auth: this.auth
+    };
 
     // If we have options merge them in
     if(this.replicasetOptionsArray.length >= (i + 1)) {
@@ -103,14 +114,29 @@ ShardedManager.prototype.start = function(callback) {
   var self = this;
   // Start replicaset servers
   startReplicasetServers(self, function(err, result) {
+    if(err) {
+      console.log("============================ replicaset servers start failed");
+      console.dir(err);
+    }
     // Start the config servers
     startConfigServers(self, function(err, result) {
+      if(err) {
+        console.log("============================ config servers start failed");
+        console.dir(err);
+      }
       // Start the mongos proxies
       startMongosProxies(self, function(err, result) {
-        // Setup shard
-        setupShards(self, function(err, result) {
-          callback();
-        });
+        if(err) {
+          console.log("============================ mongos proxies start failed");
+          console.dir(err);
+        }
+
+        // setTimeout(function() {
+          // Setup shard
+          setupShards(self, function(err, result) {
+            callback();
+          });
+        // }, 10000);
       });
     });
   });
@@ -166,7 +192,7 @@ ShardedManager.prototype.restartMongoS = function(port, callback) {
 ShardedManager.prototype.shardDb = function(dbname, callback) {
   if(this.mongosProxies.length == 0) throw new Error("need at least one mongos server");
   // Set up the db connection
-  var db = new Db("admin", new Server("localhost", this.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {safe:false});
+  var db = new Db("admin", new Server("localhost", this.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {w:0});
   db.open(function(err, db) {
     // Run the add shard commands
     db.command({enablesharding:dbname}, function(err, result) {
@@ -180,7 +206,7 @@ ShardedManager.prototype.shardDb = function(dbname, callback) {
 ShardedManager.prototype.shardCollection = function(collectionName, key, callback) {
   if(this.mongosProxies.length == 0) throw new Error("need at least one mongos server");
   // Set up the db connection
-  var db = new Db("admin", new Server("localhost", this.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {safe:false});
+  var db = new Db("admin", new Server("localhost", this.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {w:0});
   db.open(function(err, db) {
     // Run the add shard commands
     db.command({shardcollection:collectionName, key:key}, function(err, result) {
@@ -193,8 +219,9 @@ ShardedManager.prototype.shardCollection = function(collectionName, key, callbac
 var setupShards = function(self, callback) {
   if(self.mongosProxies.length == 0) throw new Error("need at least one mongos server");
   // Set up the db connection
-  var db = new Db("admin", new Server("localhost", self.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {safe:false});
+  var db = new Db("admin", new Server("localhost", self.mongosRangeSet, {auto_reconnect: true, poolSize: 4}), {w:0});
   db.open(function(err, db) {
+    if(err) throw err;
     // console.log("=================================================================")
     // console.dir(err)
     var numberOfShardsToAdd = self.numberOfReplicaSets;

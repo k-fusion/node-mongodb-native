@@ -4,24 +4,20 @@ In the first tutorial we targeted general usage of the database. But Mongo DB is
 ## A simple example
 Let's dive straight into a simple example on how to write a file to the grid using the simplified Grid class.
 
-    var mongo = require('mongodb'),
-      Server = mongo.Server,
-      Db = mongo.Db,
-	Grid = mongo.Grid;
-	
-    var server = new Server('localhost', 27017, {auto_reconnect: true});
-    var db = new Db('exampleDb', server);
+    var MongoClient = require('mongodb').MongoClient,
+      Grid = mongo.Grid;
+    
+    // Connect to the db
+    MongoClient.connect("mongodb://localhost:27017/exampleDb", function(err, db) {
+      if(err) return console.dir(err);
 
-    db.open(function(err, db) {
-      if(!err) {
-        var grid = new Grid(db, 'fs');    
-        var buffer = new Buffer("Hello world");
-        grid.put(buffer, {metadata:{category:'text'}, content_type: 'text'}, function(err, fileInfo) {
-          if(!err) {
-            console.log("Finished writing file to Mongo");
-          }
-        });
-      }
+      var grid = new Grid(db, 'fs');    
+      var buffer = new Buffer("Hello world");
+      grid.put(buffer, {metadata:{category:'text'}, content_type: 'text'}, function(err, fileInfo) {
+        if(!err) {
+          console.log("Finished writing file to Mongo");
+        }
+      });
     });
     
 All right let's dissect the example. The first thing you'll notice is the statement
@@ -47,18 +43,22 @@ Right so we have written out first file, let's look at the other two simple func
 
 **the requires and and other initializing stuff omitted for brevity**
     
-    db.open(function(err, db) {
-      if(!err) {
-        var grid = new Grid(db, 'fs');    
-        var buffer = new Buffer("Hello world");
-        grid.put.(buffer, {metadata:{category:'text'}, content_type: 'text'}, function(err, fileInfo) {        
-          grid.get(fileInfo._id, function(err, data) {
-            console.log("Retrieved data: " + data.toString());
-            grid.delete(fileInfo._id, function(err, result) {
-            });        
-          });
+    var MongoClient = require('mongodb').MongoClient,
+      Grid = mongo.Grid;
+    
+    // Connect to the db
+    MongoClient.connect("mongodb://localhost:27017/exampleDb", function(err, db) {
+      if(err) return console.dir(err);
+
+      var grid = new Grid(db, 'fs');    
+      var buffer = new Buffer("Hello world");
+      grid.put.(buffer, {metadata:{category:'text'}, content_type: 'text'}, function(err, fileInfo) {        
+        grid.get(fileInfo._id, function(err, data) {
+          console.log("Retrieved data: " + data.toString());
+          grid.delete(fileInfo._id, function(err, result) {
+          });        
         });
-      }
+      });
     });
 
 Let's have a look at the two operations **get** and **delete**
@@ -118,8 +118,7 @@ This allows you to adjust how big the chunks are in bytes that Mongo DB will wri
 
 Now let's see how the actual streaming read works.
 
-    var gridStore = new GridStore(db, fileId, "r");
-    gridStore.open(function(err, gridStore) {
+    new GridStore(db, fileId, "r").open(function(err, gridStore) {
       var stream = gridStore.stream(true);
 
       stream.on("data", function(chunk) {

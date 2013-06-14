@@ -35,7 +35,7 @@ Several options can be passed to the `createCollection` function with `options` 
 ### Collection properties
 
   * `collectionName` is the name of the collection (not including the database name as a prefix)
-  * `db` is the pointer to the corresponding databse object
+  * `db` is the pointer to the corresponding database object
 
 Example of usage:
 
@@ -93,6 +93,10 @@ Several options can be passed to the `collection` function with `options` parame
 A collection can be renamed with collection method `rename`
 
     collection.rename(new_name, callback);
+
+Passing the optional dropTarget boolean as the thrid parameter will allow overwritting of existing collections
+    
+    collection.rename(new_name, {dropTarget:true}, callback);
 
 ## Removing records from collections
 
