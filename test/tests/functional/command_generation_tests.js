@@ -31,7 +31,11 @@ exports['Should Correctly Generate an Insert Command'] = function(configuration,
   insert_command.add({name: 'peter pan'});
   insert_command.add({name: 'monkey king'});
   // assert the length of the binary
-  test.equal(81, insert_command.toBinary().length);
+  test.equal(81, insert_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -59,7 +63,11 @@ exports['Should Correctly Generate an Update Command'] = function(configuration,
   var document = {$set: {value:1}};
   // Create the command
   var update_command = new UpdateCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, full_collection_name, selector, document, {upsert:1});
-  test.equal(85, update_command.toBinary().length);
+  test.equal(85, update_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -87,7 +95,11 @@ exports['Should Correctly Generate a Delete Command'] = function(configuration, 
   // Create the command
   var delete_command = new DeleteCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, full_collection_name, selector);
   // assert the length of the binary
-  test.equal(58, delete_command.toBinary().length);
+  test.equal(58, delete_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -116,7 +128,11 @@ exports['Should Correctly Generate a Get More Command'] = function(configuration
   // Create the command
   var get_more_command = new GetMoreCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, full_collection_name, numberToReturn, cursorId);
   // assert the length of the binary
-  test.equal(41, get_more_command.toBinary().length);
+  test.equal(41, get_more_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -144,7 +160,11 @@ exports['Should Correctly Generate a Kill Cursors Command'] = function(configura
   // Create the command
   var kill_cursor_command = new KillCursorCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, cursorIds);
   // assert the length of the binary
-  test.equal(40, kill_cursor_command.toBinary().length);
+  test.equal(40, kill_cursor_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -174,10 +194,18 @@ exports['Should Correctly Generate a Query Command'] = function(configuration, t
   var query = {name:'peter pan'};
   var query_command = new QueryCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, full_collection_name, options, numberToSkip, numberToReturn, query, null);
   // assert the length of the binary
-  test.equal(62, query_command.toBinary().length);
+  test.equal(62, query_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   // Generate command with return field filter
   query_command = new QueryCommand({bson: new BSON([Long, ObjectID, Binary, Code, DBRef, Symbol, Double, Timestamp, MaxKey, MinKey])}, full_collection_name, options, numberToSkip, numberToReturn, query, { a : 1, b : 1, c : 1});
-  test.equal(88, query_command.toBinary().length);
+  test.equal(88, query_command.toBinary({
+      disableDriverBSONSizeCheck:true
+    , maxBsonSize: 1000000
+    , maxMessageSizeBytes: 1000000
+  }).length);
   test.done();
 }
 
@@ -218,7 +246,7 @@ exports.shouldCorrectlyGetErrorOnIllegalBSON = function(configuration, test) {
   mongoReply.parseHeader(buffer, bson);
   // Fire up parseBody
   mongoReply.parseBody(buffer, bson, false, function(err, result) {
-    test.equal("corrupt bson message", err.message);
+    test.ok(err != null);
     test.done();
   });      
 }

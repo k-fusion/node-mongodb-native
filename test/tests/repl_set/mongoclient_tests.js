@@ -10,9 +10,6 @@ exports['Should correctly connect to a replicaset with additional options'] = fu
   var replMan = configuration.getReplicasetManager();
   var url = format("mongodb://localhost:%s,localhost:%s,localhost:%s/integration_test_"
     , replMan.ports[0], replMan.ports[1], replMan.ports[2])
-  // var url = format("mongodb://127.0.0.1:%s,127.0.0.1:%s,localhost:%s/integration_test_"
-  //   , replMan.ports[0], replMan.ports[1], replMan.ports[2])
-  // console.log(url)
 
   MongoClient.connect(url, {
     db: {
@@ -65,8 +62,8 @@ exports['Should correctly connect to a replicaset with readPreference set'] = fu
     , "primary");
 
   MongoClient.connect(url, function(err, db) {
-    // console.log("========================================================")
-    // console.dir(err)
+    console.log("========================================================")
+    console.dir(err)
     test.equal(null, err);
 
     db.collection("test_collection").insert({a:1}, function(err, result) {

@@ -1,4 +1,6 @@
-// var x = new ReplSetTest({"nodes" : {node0 : {}, node1 : {}, arbiter : {}}})
+// var x = new ReplSetTest({"useHostName":"false", "nodes" : {node0 : {}, node1 : {}, arbiter : {}}})
+// var x = new ReplSetTest({"useHostName":"false", "nodes" : {node0 : {}, node1 : {}, node2 : {}, arbiter : {}}})
+// var x = new ReplSetTest({"useHostName":"false", "nodes" : {node0 : {}, node1 : {}, node2 : {}}})
 // x.startSet();
 // var config = x.getReplSetConfig()
 // config.members[0].priority = 10
@@ -24,7 +26,7 @@ for (var i=0; i<log_hostname.length; i++) {
 replica_servers[i] = new Server(log_hostname[i], log_port[i], {auto_reconnect: true, poolSize: 5});
 }
 var rsname = 'testReplSet';
-log_server = new ReplSetServers(replica_servers, {rs_name:rsname});
+log_server = new ReplSetServers(replica_servers, {rs_name:rsname, poolSize:100});
 
 var db = new Db('test', log_server, {safe:true});
 db.open(function(err, p_db) {

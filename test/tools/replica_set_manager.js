@@ -108,7 +108,8 @@ ReplicaSetManager.prototype.startSet = function(killall, callback) {
   this.config = {"_id": this.name, "version": 1, "members": []};
 
   // Kill all existing mongod instances
-  exec(killall ? 'killall -9 mongod' : '', function(err, stdout, stderr) {
+  // exec(killall ? 'killall -9 mongod' : '', function(err, stdout, stderr) {
+  this.killAll({skip: !killall}, function() {    
     var n = 0;
     var tagsIndex = 0;
 
@@ -253,10 +254,28 @@ ReplicaSetManager.prototype.initNode = function(n, fields, callback) {
   });
 }
 
-ReplicaSetManager.prototype.killAll = function(callback) {
-  exec('killall -9 mongod', function(err, stdout, stderr) {
-    if(typeof callback == 'function') return callback();
-  });
+ReplicaSetManager.prototype.killAll = function(options, callback) {
+  if(typeof options == 'function') {
+    callback = options;
+    options = {};
+  }
+
+  if(options.skip) return callback();
+
+  if(Object.keys(this.mongods).length > 0) {
+    var pids = [];
+    for(var name in this.mongods) {
+      pids.push(this.mongods[name].pid)
+    }
+
+    exec('kill -9 ' + pids.join(" "), function(err, stdout, stderr) {
+      if(typeof callback == 'function') return callback();
+    });
+  } else {
+    exec('killall -9 mongod', function(err, stdout, stderr) {
+      if(typeof callback == 'function') return callback();
+    });
+  }
 }
 
 ReplicaSetManager.prototype.kill = function(node, signal, options, callback) {
@@ -576,7 +595,7 @@ ReplicaSetManager.prototype.addSecondary = function(options, callback) {
       // Get the configuration
       var connection = new Db("local", new Server(primary.split(":")[0], parseInt(primary.split(":")[1], 10), {
           ssl:self.ssl
-        , auto_reconnect:true
+        , auto_reconnect:false
         , poolSize:1
         , socketOptions: {
             connectTimeoutMS: 30000
@@ -689,7 +708,7 @@ ReplicaSetManager.prototype.getConnection = function(node, callback) {
     var intervalId = setInterval(function() {
       var connection = new Db("replicaset_test", new Server(self.host, self.mongods[node]["port"], {
           ssl:self.ssl
-        , auto_reconnect:true
+        , auto_reconnect:false
         , socketOptions: {
             connectTimeoutMS: 30000
           , socketTimeoutMS: 30000
@@ -745,7 +764,7 @@ ReplicaSetManager.prototype.reStartAndConfigure = function(node_configs, callbac
     // Get the configuration
     var connection = new Db("local", new Server(primary.split(":")[0], parseInt(primary.split(":")[1], 10), {
         ssl:self.ssl
-      , auto_reconnect:true
+      , auto_reconnect:false
         , socketOptions: {
             connectTimeoutMS: 30000
           , socketTimeoutMS: 30000
