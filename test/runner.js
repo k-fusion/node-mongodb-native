@@ -1,6 +1,6 @@
 // console.log(argv._);
 var argv = require('optimist')
-    .usage('Usage: $0 -t [target] -e [environment] -n [name]')
+    .usage('Usage: $0 -t [target] -e [environment] -n [name] -f [filename]')
     .demand(['t'])
     .argv;
 
@@ -42,9 +42,13 @@ var replicaset_runners = require('./runners/replicaset_runner')(configurations)
 // Running a specific test
 var run_options = {};
 if(argv.n) run_options.test = argv.n;
+if(argv.f) run_options.file = argv.f;
 // Handle the targets
 if(argv.t == 'functional') {
   var environment = argv.e ? argv.e : 'single_server'
+  standalone_runners.runner.on('end', function() {
+    process.exit(0);
+  });
   standalone_runners.runner.run(environment, run_options);
 } else if(argv.t == 'auth') {
   // Trap end of tests
@@ -53,17 +57,35 @@ if(argv.t == 'functional') {
   });
 
   replicaset_runners.runner_auth.on('end', function() {
+    process.exit(0);
     sharded_runners.runner_auth.run('sharded_auth', run_options);
+  });
+
+  sharded_runners.runner_auth.on('end', function() {
+    process.exit(0);
   });
 
   // Start chain of auth tests
   standalone_runners.runner_auth.run('single_server_auth', run_options);
 } else if(argv.t == 'ssl') {
   ssl_runners.runner.run('none', run_options);
+  ssl_runners.runner.on('end', function() {
+    process.exit(0);
+  });
 } else if(argv.t == 'sharded') {
   sharded_runners.runner.run('sharded', run_options);
+  sharded_runners.runner_auth.on('end', function() {
+    process.exit(0);
+  });
 } else if(argv.t == 'replicaset') {
   replicaset_runners.runner.run('replica_set', run_options);
+  replicaset_runners.runner_auth.on('end', function() {
+    process.exit(0);
+  });
 } else if(argv.t == 'kerberos') {
   kerberos_runners.runner.run('none', run_options);
+  kerberos_runners.runner_auth.on('end', function() {
+    process.exit(0);
+  });
 }
+

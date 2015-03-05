@@ -215,50 +215,56 @@ exports.shouldCorrectlyExecuteSortOnCursor = function(configuration, test) {
         },
 
         function finished() {
+          var number_of_functions = 10;
+          var finished = function() {
+            number_of_functions = number_of_functions - 1;
+            if(number_of_functions == 0) {
+              db.close();
+              test.done();
+            }
+          }
+
           collection.find().sort(['a', 1], function(err, cursor) {
-            test.deepEqual(['a', 1], cursor.sortValue);
+            test.deepEqual(['a', 1], cursor.sortValue);finished();
           });
 
           collection.find().sort('a', 1).nextObject(function(err, doc) {
-            test.equal(0, doc.a);
+            test.equal(0, doc.a);finished();
           });
 
           collection.find().sort('a', -1).nextObject(function(err, doc) {
-            test.equal(4, doc.a);
+            test.equal(4, doc.a);finished();
           });
 
           collection.find().sort('a', "asc").nextObject(function(err, doc) {
-            test.equal(0, doc.a);
+            test.equal(0, doc.a);finished();
           });
 
           collection.find().sort([['a', -1], ['b', 1]], function(err, cursor) {
-            test.deepEqual([['a', -1], ['b', 1]], cursor.sortValue);
+            test.deepEqual([['a', -1], ['b', 1]], cursor.sortValue);finished();
           });
 
           collection.find().sort('a', 1).sort('a', -1).nextObject(function(err, doc) {
-            test.equal(4, doc.a);
+            test.equal(4, doc.a);finished();
           });
 
           collection.find().sort('a', -1).sort('a', 1).nextObject(function(err, doc) {
-            test.equal(0, doc.a);
+            test.equal(0, doc.a);finished();
           });
 
           var cursor = collection.find();
           cursor.nextObject(function(err, doc) {
             cursor.sort(['a'], function(err, cursor) {
-              test.equal("Cursor is closed", err.message);
+              test.equal("Cursor is closed", err.message);finished();
             });
           });
 
           collection.find().sort('a', 25).nextObject(function(err, doc) {
-            test.equal("Illegal sort clause, must be of the form [['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]", err.message);
+            test.equal("Illegal sort clause, must be of the form [['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]", err.message);finished();
           });
 
           collection.find().sort(25).nextObject(function(err, doc) {
-            test.equal("Illegal sort clause, must be of the form [['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]", err.message);
-            // Let's close the db
-            db.close();
-            test.done();
+            test.equal("Illegal sort clause, must be of the form [['field1', '(ascending|descending)'], ['field2', '(ascending|descending)']]", err.message);finished();
           });
         }
       );
@@ -450,26 +456,27 @@ exports.shouldCorrectlyReturnErrorsOnIllegalLimitValues = function(configuration
       });
 
       collection.find(function(err, cursor) {
-        cursor.nextObject(function(err, doc) {
-          cursor.limit(1, function(err, cursor) {
-            test.equal("Cursor is closed", err.message);
-          });
-
-          try {
-            cursor.limit(1);
-            test.ok(false);
-          } catch(err) {
-            test.equal("Cursor is closed", err.message);
-          }
-        });
-      });
-
-      collection.find(function(err, cursor) {
         cursor.close(function(err, cursor) {
           cursor.limit(1, function(err, cursor) {
             test.equal("Cursor is closed", err.message);
-            db.close();
-            test.done();
+
+            collection.find(function(err, cursor) {
+              cursor.nextObject(function(err, doc) {
+                cursor.limit(1, function(err, cursor) {
+                  test.equal("Cursor is closed", err.message);
+                });
+
+                try {
+                  cursor.limit(1);
+                  test.ok(false);
+                } catch(err) {
+                  test.equal("Cursor is closed", err.message);
+                }
+
+                db.close();
+                test.done();                
+              });
+            });
           });
 
           try {
@@ -1164,19 +1171,20 @@ exports.shouldCorrectlyExecuteEnsureIndexWithNoCallback = function(configuration
     // Create collection
     db.createCollection('shouldCorrectlyExecuteEnsureIndexWithNoCallback', function(err, collection) {
       // ensure index of createdAt index
-      collection.ensureIndex({createdAt:1})
-      // insert all docs
-      collection.insert(docs, {w:1}, function(err, result) {
-        test.equal(null, err);
+      collection.ensureIndex({createdAt:1}, function(err, result) {
+        // insert all docs
+        collection.insert(docs, {w:1}, function(err, result) {
+          test.equal(null, err);
 
-        // Find with sort
-        collection.find().sort(['createdAt', 'asc']).toArray(function(err, items) {
-          if (err) logger.error("error in collection_info.find: " + err);
-          test.equal(1, items.length);
-          db.close();
-          test.done();
+          // Find with sort
+          collection.find().sort(['createdAt', 'asc']).toArray(function(err, items) {
+            if (err) logger.error("error in collection_info.find: " + err);
+            test.equal(1, items.length);
+            db.close();
+            test.done();
+          })
         })
-      })
+      });
     });
   });
 }
@@ -1441,13 +1449,14 @@ exports['immediately destroying a stream prevents the query from executing'] = f
 exports['destroying a stream stops it'] = function(configuration, test) {
   var db = configuration.newDbInstance({w:1}, {poolSize:1});
   db.open(function(err, db) {
+    test.equal(null, err);
+
     db.createCollection('destroying_a_stream_stops_it', function(err, collection) {
       test.equal(null, err);
 
       var docs = [];
       for (var ii = 0; ii < 10; ++ii) docs.push({ b: ii+1 });
 
-      var client = configuration.db();
       // insert all docs
       collection.insert(docs, {w:1}, function(err, result) {
         test.equal(null, err);
@@ -2366,30 +2375,30 @@ exports.shouldStreamDocumentsUsingTheCloseFunction = function(configuration, tes
   // DOC_END
 }
 
-/**
- * @ignore
- */
-exports.shouldCorrectlyHandleThrownErrorInCursorNext = function(configuration, test) {
-  var db = configuration.newDbInstance({w:1}, {poolSize:1});
-  var domain = require('domain');
-  var d = domain.create();
-  d.on('error', function(err) {
-    test.done()
-  })
+// /**
+//  * @ignore
+//  */
+// exports.shouldCorrectlyHandleThrownErrorInCursorNext = function(configuration, test) {
+//   var db = configuration.newDbInstance({w:1}, {poolSize:1});
+//   var domain = require('domain');
+//   var d = domain.create();
+//   d.on('error', function(err) {
+//     test.done()
+//   })
 
-  d.run(function() {
-    db.open(function(err, db) {
-      var collection = db.collection('shouldCorrectlyHandleThrownErrorInCursorNext');
-      collection.insert([{a:1, b:2}], function(err, result) {
-        test.equal(null, err);
+//   d.run(function() {
+//     db.open(function(err, db) {
+//       var collection = db.collection('shouldCorrectlyHandleThrownErrorInCursorNext');
+//       collection.insert([{a:1, b:2}], function(err, result) {
+//         test.equal(null, err);
 
-        collection.find().nextObject(function(err, doc) {
-          dfdsfdfds
-        });
-      });
-    });
-  })
-}
+//         collection.find().nextObject(function(err, doc) {
+//           dfdsfdfds
+//         });
+//       });
+//     });
+//   })
+// }
 
 // /**
 //  * @ignore

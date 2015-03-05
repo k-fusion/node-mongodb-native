@@ -84,6 +84,33 @@ exports.shouldCorrectlyPerformAutomaticConnect = function(configuration, test) {
 }
 
 /**
+ * @ignore
+ */
+exports.shouldCorrectlyPerformAutomaticConnectWithMaxBufferSize0 = function(configuration, test) {
+  var automatic_connect_client = configuration.newDbInstance({w:1, bufferMaxEntries:0}, {poolSize:1, auto_reconnect:true});
+  automatic_connect_client.open(function(err, automatic_connect_client) {
+    // Listener for closing event
+    var closeListener = function(has_error) {
+      // Let's insert a document
+      var collection = automatic_connect_client.collection('test_object_id_generation.data2');
+      // Insert another test document and collect using ObjectId
+      collection.insert({"name":"Patty", "age":34}, {w:1}, function(err, ids) {
+        test.ok(err != null);
+        test.ok(err.message.indexOf("0") != -1)
+        // Let's close the db
+        automatic_connect_client.close();
+        test.done();
+      });
+    };
+
+    // Add listener to close event
+    automatic_connect_client.once("close", closeListener);
+    // Ensure death of server instance
+    automatic_connect_client.serverConfig.connectionPool.openConnections[0].connection.destroy();
+  });
+}
+
+/**
  * An example that shows how to force close a db connection so it cannot be reused.
  *
  * @_class db
@@ -134,17 +161,26 @@ exports.shouldCorrectlyExecuteEvalFunctions = function(configuration, test) {
   // DOC_START
   // Establish connection to db
   db.open(function(err, db) {
-    var numberOfTests = 
+    var numberOfTests = 10;
+
+    var tests_done = function() {
+      numberOfTests = numberOfTests - 1;
+
+      if(numberOfTests == 0) {
+        db.close();
+        test.done();
+      }
+    }
 
     // Evaluate a function on the server with the parameter 3 passed in
     db.eval('function (x) {return x;}', [3], function(err, result) {
-      test.equal(3, result);
+      test.equal(3, result); tests_done();
     });
 
     // Evaluate a function on the server with the parameter 3 passed in no lock aquired for eval
     // on server
     db.eval('function (x) {return x;}', [3], {nolock:true}, function(err, result) {
-      test.equal(3, result);
+      test.equal(3, result); tests_done();
     });
 
     // Evaluate a function on the server that writes to a server collection
@@ -152,48 +188,49 @@ exports.shouldCorrectlyExecuteEvalFunctions = function(configuration, test) {
       // Locate the entry
       db.collection('test_eval', function(err, collection) {
         collection.findOne(function(err, item) {
-          test.equal(5, item.y);
+          test.equal(5, item.y); tests_done();
         });
       });
     });
 
     // Evaluate a function with 2 parameters passed in
     db.eval('function (x, y) {return x + y;}', [2, 3], function(err, result) {
-      test.equal(5, result);
+      test.equal(5, result); tests_done();
     });
 
     // Evaluate a function with no parameters passed in
     db.eval('function () {return 5;}', function(err, result) {
-      test.equal(5, result);
+      test.equal(5, result); tests_done();
     });
 
     // Evaluate a statement
     db.eval('2 + 3;', function(err, result) {
-      test.equal(5, result);
+      test.equal(5, result); tests_done();
     });
 
     // Evaluate a statement using the code object
     db.eval(new Code("2 + 3;"), function(err, result) {
-      test.equal(5, result);
+      test.equal(5, result); tests_done();
     });
 
     // Evaluate a statement using the code object including a scope
     db.eval(new Code("return i;", {'i':2}), function(err, result) {
-      test.equal(2, result);
+      test.equal(2, result); tests_done();
     });
 
     // Evaluate a statement using the code object including a scope
     db.eval(new Code("i + 3;", {'i':2}), function(err, result) {
-      test.equal(5, result);
+      test.equal(5, result); tests_done();
     });
 
     // Evaluate an illegal statement
     db.eval("5 ++ 5;", function(err, result) {
       test.ok(err instanceof Error);
       test.ok(err.message != null);
+      tests_done();
       // Let's close the db
-      db.close();
-      test.done();
+      // db.close();
+      // test.done();
     });
   });
   // DOC_END
@@ -712,19 +749,24 @@ exports.shouldCorrectlyLogoutFromTheDatabase = {
       test.equal(null, err);
 
       // Add a user to the database
-      db.addUser('user', 'name', function(err, result) {
+      db.addUser('user3', 'name', function(err, result) {
         test.equal(null, err);
 
         // Authenticate
-        db.authenticate('user', 'name', function(err, result) {
+        db.authenticate('user3', 'name', function(err, result) {
           test.equal(true, result);
 
           // Logout the db
           db.logout(function(err, result) {
             test.equal(true, result);
 
-            db.close();
-            test.done();
+            // Remove the user
+            db.removeUser('user3', function(err, result) {
+              test.equal(true, result);
+  
+              db.close();
+              test.done();
+            });
           });
         });
       });
@@ -756,11 +798,11 @@ exports.shouldCorrectlyAuthenticateAgainstTheDatabase = {
       test.equal(null, err);
 
       // Add a user to the database
-      db.addUser('user', 'name', function(err, result) {
+      db.addUser('user2', 'name', function(err, result) {
         test.equal(null, err);
 
         // Authenticate
-        db.authenticate('user', 'name', function(err, result) {
+        db.authenticate('user2', 'name', function(err, result) {
           test.equal(true, result);
 
           db.close();

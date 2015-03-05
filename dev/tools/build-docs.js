@@ -25,7 +25,7 @@ var apiClasses = [
     {tag:"mongos", path:"./lib/mongodb/connection/mongos.js"},
     {tag:"replset", path:"./lib/mongodb/connection/repl_set/repl_set.js"},
     {tag:"readpreference", path:"./lib/mongodb/connection/read_preference.js"}
-  ];
+];
 
 // All test files
 var testClasses = [];
@@ -194,7 +194,6 @@ var tagDescriptions = {
 }
 
 // Create the github documents
-// docs.generateGithubPackageList(inputFile, outputDirectory, templates, tagDescriptions, {dontfetch:true});
 docs.generateGithubPackageList(inputFile, outputDirectoryGithub, templates, tagDescriptions, {});
 
 

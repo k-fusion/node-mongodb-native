@@ -214,12 +214,14 @@ exports['Should emit close with callback'] = function(configuration, test) {
   new Db('integration_test_', replSet, {w:0}).open(function(err, db) {
     test.equal(null, err);
     var dbCloseCount = 0;
-    db.on('close', function() { ++dbCloseCount; });
+    db.on('close', function() { 
+      ++dbCloseCount; 
+    });
 
     db.close(function() {
       // Let all events fire.
       process.nextTick(function() {
-        test.equal(dbCloseCount, 0);
+        test.equal(dbCloseCount, 1);
         test.done();
       });
     });
@@ -600,4 +602,93 @@ exports['Should correctly emit all signals even if not yet connected'] = functio
       });                                                                         
     });                                                                           
   });               
+}
+
+exports['Should receive all events for primary and secondary leaving'] = function(configuration, test) {
+  var mongo = configuration.getMongoPackage()
+    , ReplSetServers = mongo.ReplSetServers
+    , Server = mongo.Server
+    , Db = mongo.Db;
+
+  // Replset start port
+  var replicasetManager = configuration.getReplicasetManager();
+  // Replica configuration
+  var replSet = new ReplSetServers([
+      new Server(replicasetManager.host, replicasetManager.ports[0]),
+      new Server(replicasetManager.host, replicasetManager.ports[1]),
+      new Server(replicasetManager.host, replicasetManager.ports[2])
+    ]
+    , {rs_name:replicasetManager.name}
+  );
+
+  // Counters to track emitting of events
+  var numberOfJoins = 0;
+  var numberLeaving = 0;
+
+  // Add some listeners
+  replSet.on("left", function(_server_type, _server) {
+    numberLeaving += 1;
+    // console.log("========================= " + _server_type + " at " + _server.host + ":" + _server.port + " left")
+  });
+
+  replSet.on("joined", function(_server_type, _doc, _server) {
+    numberOfJoins += 1;
+    // console.log("========================= " + _server_type + " at " + _server.host + ":" + _server.port + " joined")
+    // console.dir(_doc)
+  });
+
+  // Connect to the replicaset
+  var db = new Db('integration_test_', replSet, {w:0});
+  db.open(function(err, p_db) {
+    // Kill the secondary
+    replicasetManager.killSecondary(function() {
+      test.equal(null, err);
+      p_db.close();
+      test.equal(3, numberOfJoins);
+      test.equal(1, numberLeaving);
+      test.done();
+    });
+  });
+}
+
+exports['Should Fail due to bufferMaxEntries = 0 not causing any buffering'] = function(configuration, test) {
+  var mongo = configuration.getMongoPackage()
+    , ReplSetServers = mongo.ReplSetServers
+    , Server = mongo.Server
+    , Db = mongo.Db;
+
+  // Replset start port
+  var replicasetManager = configuration.getReplicasetManager();
+  // Replica configuration
+  var replSet = new ReplSetServers([
+      new Server(replicasetManager.host, replicasetManager.ports[0]),
+      new Server(replicasetManager.host, replicasetManager.ports[1]),
+      new Server(replicasetManager.host, replicasetManager.ports[2])
+    ]
+    , {rs_name:replicasetManager.name}
+  );
+
+  // Counters to track emitting of events
+  var numberOfJoins = 0;
+  var numberLeaving = 0;
+
+  // Connect to the replicaset
+  var db = new Db('integration_test_', replSet, {w:1, bufferMaxEntries: 0});
+  db.open(function(err, p_db) {
+    // Kill the secondary
+    replicasetManager.killPrimary(9, {killNodeWaitTime:100}, function() {
+      test.equal(null, err);
+
+      setTimeout(function() {
+        // Attempt an insert
+        db.collection('_should_fail_due_to_bufferMaxEntries_0').insert({a:1}, function(err, ids) {
+          test.ok(err != null);
+          test.ok(err.message.indexOf("0") != -1)
+
+          // db.close();
+          test.done();
+        });
+      }, 3000);
+    });
+  });
 }

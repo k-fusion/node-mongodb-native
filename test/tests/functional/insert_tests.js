@@ -686,23 +686,22 @@ exports.shouldCorrectlyPerformSafeInsert = function(configuration, test) {
       },
 
       function done() {
-        collection.count(function(err, count) {
-          test.equal(3, count);
-
-          collection.find().toArray(function(err, docs) {
-            test.equal(3, docs.length)
-          });
-        });
-
-
         var cursor = collection.find({}, {});
         var counter = 0;
 
         cursor.each(function(err, doc) {
           if(doc == null) {
             test.equal(3, counter);
-            db.close();
-            test.done();
+
+            collection.count(function(err, count) {
+              test.equal(3, count);
+
+              collection.find().toArray(function(err, docs) {
+                test.equal(3, docs.length)
+                db.close();
+                test.done();
+              });
+            });
           } else {
             counter = counter + 1;
           }
@@ -1618,7 +1617,6 @@ exports.shouldCorrectlyThrowDueToIllegalCollectionName = function(configuration,
     k[6] = 0x06;
     k.write("world", 10);
 
-
     try {
       var collection = db.collection(k.toString());
       test.fail(false);
@@ -1785,7 +1783,6 @@ exports.shouldCorrectlyOverrideCheckKeysJS = function(configuration, test) {
 
 exports.shouldCorrectlyOverrideCheckKeysNative = function(configuration, test) {
   var Long = configuration.getMongoPackage().Long;
-
   var db = configuration.newDbInstance({w:1}, {native_parser:true})
   db.open(function(err, db) {
     db.collection('shouldCorrectlyOverrideCheckKeysNative').insert({
@@ -1890,10 +1887,34 @@ exports.shouldCorrectlyWorkWithCheckKeys = function(configuration, test) {
   db.open(function(err, db) {
     db.collection('shouldCorrectlyOverrideCheckKeysJSOnUpdate').update({
         "ps.op.t":1
-      }, {'$set': {b: 1}}, function(err, doc) {
+      }, {'$set': {b: 1}}, {checkKeys:false}, function(err, doc) {
         test.equal(null, err);
         db.close();
         test.done();
       });
+  });
+}
+
+exports.shouldCorrectlyApplyBitOperator = function(configuration, test) {
+  var db = configuration.newDbInstance({w:1}, {native_parser:false})
+  db.open(function(err, db) {
+    var col = db.collection('shouldCorrectlyApplyBitOperator');
+
+    col.insert({a:1, b:1}, function(err, result) {
+      test.equal(null, err);
+
+      col.update({a:1}, {$bit: {b: {and: 0}}}, function(err, result) {
+        test.equal(null, err);
+
+        col.findOne({a:1}, function(err, doc) {
+          test.equal(null, err);
+          test.equal(1, doc.a);
+          test.equal(0, doc.b);
+
+          db.close();
+          test.done();
+        });
+      });
+    });
   });
 }

@@ -12,6 +12,7 @@ var debug = require('util').debug,
 var ReplicaSetManager = exports.ReplicaSetManager = function(options) {
   options = options == null ? {} : options;
 
+  this.fullLogging = options["fullLogging"] || false;
   this.startPort = options["start_port"] || 30000;
   this.ports = [];
   this.name = options["name"] != null ? options["name"] : "replica-set-foo";
@@ -260,6 +261,7 @@ ReplicaSetManager.prototype.killAll = function(options, callback) {
     options = {};
   }
 
+  options = options == null ? {} : options;
   if(options.skip) return callback();
 
   if(Object.keys(this.mongods).length > 0) {
@@ -438,7 +440,6 @@ ReplicaSetManager.prototype.ensureUp = function(callback) {
       // Attemp to retrieve a connection
       self.getConnection(function(err, connection) {
         console.log("[ensureUp] - " + self.startPort + " :: " + numberOfInitiateRetries)
-        // console.dir(err)
 
         // Adjust the number of retries
         numberOfInitiateRetries = numberOfInitiateRetries - 1
@@ -469,6 +470,9 @@ ReplicaSetManager.prototype.ensureUp = function(callback) {
           _authenticateIfNeeded(self, connection, function() {
             // Check repl set get status
             connection.admin().command({"replSetGetStatus": 1}, function(err, object) {              
+              // console.log("=====================================================")
+              // console.dir(err)
+              // console.dir(object)
               // Close connection
               if(connection != null) connection.close();
               // Get documents
@@ -489,7 +493,7 @@ ReplicaSetManager.prototype.ensureUp = function(callback) {
                   return callback(new Error("Operation Failure"), null);
                 } else {
                   // Execute function again
-                  setTimeout(ensureUpFunction, 1000);
+                  setTimeout(ensureUpFunction, 5000);
                 }
               } else {
                 // Establish all health member
@@ -523,7 +527,7 @@ ReplicaSetManager.prototype.ensureUp = function(callback) {
                     return callback(new Error("Operation Failure"), null);
                   } else {
                     // Execute function again
-                    setTimeout(ensureUpFunction, 1000);
+                    setTimeout(ensureUpFunction, 5000);
                   }
                 }
               }
@@ -911,6 +915,10 @@ ReplicaSetManager.prototype.startCmd = function(n) {
 
   if(this.auth) {
     this.mongods[n]["start"] = this.auth ? this.mongods[n]["start"] + " --auth --keyFile " + this.keyPath : this.mongods[n]["start"];
+  }
+
+  if(this.fullLogging) {
+    this.mongods[n]["start"] = this.mongods[n]["start"] + " -vvvvv";
   }
 
   // If we have ssl defined set up with test certificate

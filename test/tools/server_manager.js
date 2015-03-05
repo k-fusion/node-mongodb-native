@@ -9,15 +9,7 @@ var debug = require('util').debug,
   Server = require('../../lib/mongodb').Server;
 
 var ensureUp = function(self, host, port, number_of_retries, callback) {
-  // console.log("===================================== ENSURE UP :: " + port)
   var options = {poolSize:1, socketOptions:{connectTimeoutMS: 1000}, auto_reconnect:false};
-  // console.dir(this.ssl)
-
- // *  - **sslValidate** {Boolean, default:false}, validate mongod server certificate against ca (needs to have a mongod server with ssl support, 2.4 or higher)
- // *  - **sslCA** {Array, default:null}, Array of valid certificates either as Buffers or Strings (needs to have a mongod server with ssl support, 2.4 or higher)
- // *  - **sslCert** {Buffer/String, default:null}, String or buffer containing the certificate we wish to present (needs to have a mongod server with ssl support, 2.4 or higher)
- // *  - **sslKey** {Buffer/String, default:null}, String or buffer containing the certificate private key we wish to present (needs to have a mongod server with ssl support, 2.4 or higher)
- // *  - **sslPass** {Buffer/String, default:null}, String or buffer containing the certificate password (needs to have a mongod server with ssl support, 2.4 or higher)
 
   if(self.ssl) {
     options.ssl = self.ssl;
@@ -55,7 +47,7 @@ var ServerManager = exports.ServerManager = function(options) {
   this.host = options["host"] != null ? options["host"] : "localhost";
   this.db_path = getPath(this, "data-" + this.port);
   this.log_path = getPath(this, "log-" + this.port);
-  this.journal = options["journal"] != null ? options["journal"] : false;
+  this.journal = options["journal"] != null ? options["journal"] : true;
   this.auth = options['auth'] != null ? options['auth'] : false;
   this.ssl = options['ssl'] != null ? options['ssl'] : false;
   this.ssl_server_pem = options['ssl_server_pem'] != null ? options['ssl_server_pem'] : null;
@@ -84,6 +76,7 @@ var ServerManager = exports.ServerManager = function(options) {
 // Start up the server instance
 ServerManager.prototype.start = function(killall, options, callback) {
   var self = this;
+
   // Unpack callback and variables
   if(typeof options == 'function') {
     callback = options;
@@ -94,12 +87,15 @@ ServerManager.prototype.start = function(killall, options, callback) {
     options = {};
   }
 
+  // Get the purge directories
+  var purgedirectories = typeof options.purgedirectories == 'boolean' ? options.purgedirectories : true;
+
   // Create start command
   var startCmd = generateStartCmd(this, {configserver:self.configServer, log_path: self.log_path,
     db_path: self.db_path, port: self.port, journal: self.journal, auth:self.auth, ssl:self.ssl});
 
   exec(killall ? 'killall -9 mongod' : '', function(err, stdout, stderr) {
-    if(self.purgedirectories) {
+    if(purgedirectories) {
       // Remove directory
       exec("rm -rf " + self.db_path, function(err, stdout, stderr) {
         if(err != null) return callback(err, null);
@@ -194,9 +190,10 @@ var generateStartCmd = function(self, options) {
   // Create boot command
   var startCmd = "mongod --rest --noprealloc --smallfiles --logpath '" + options['log_path'] + "' " +
       " --dbpath " + options['db_path'] + " --port " + options['port'] + " --fork";
-  startCmd = options['journal'] ? startCmd + " --journal" : startCmd;
+  startCmd = options['journal'] ? startCmd + " --journal" : startCmd + " --nojournal";
   startCmd = options['auth'] ? startCmd + " --auth" : startCmd;
   startCmd = options['configserver'] ? startCmd + " --configsvr" : startCmd;
+  startCmd = startCmd + " --setParameter enableTestCommands=1";
   // If we have ssl defined set up with test certificate
   if(options['ssl']) {
     var path = getPath(self, self.ssl_server_pem);
